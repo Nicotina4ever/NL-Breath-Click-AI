@@ -2,7 +2,11 @@
 
 ## Suite automatica
 
-`ctest --test-dir build -C Release --output-on-failure`: 33 test obbligatori.
+`ctest --test-dir build -C Release --output-on-failure`: 33 test sul tag RC2;
+35 sul main successivo con GUI Windows completa. La CI headless registra
+22 su Windows e 21 su Linux/macOS (il worker POSIX sostituisce PowerShell).
+Nessun test registrato viene saltato; GUI e REAPER nativo non fanno parte
+della matrice headless.
 Sono mantenuti controlli su PCM/durata/TimeMap, overlap, selezione e Undo,
 preview/export, persistenza atomica, sessioni/progetti, prestazioni, Unicode,
 WAV/MP3/FLAC, codec opzionale, Fusion e separazione training/validazione.

@@ -16,6 +16,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <bcrypt.h>
+#else
+#include <openssl/evp.h>
 #endif
 
 namespace bc {
@@ -75,12 +77,22 @@ std::string recordingIdentity(const AudioBuffer& audio) {
     if (hash) BCryptDestroyHash(hash);
     BCryptCloseAlgorithmProvider(algorithm, 0);
     if (!ok) return {};
+#else
+    auto* context = EVP_MD_CTX_new();
+    if (!context) return {};
+    const int format[] = {audio.sampleRate, audio.channels};
+    unsigned char digest[32] = {};
+    unsigned int length = 0;
+    const bool ok = EVP_DigestInit_ex(context, EVP_sha256(), nullptr) == 1 &&
+        EVP_DigestUpdate(context, format, sizeof(format)) == 1 &&
+        EVP_DigestUpdate(context, audio.samples.data(), audio.samples.size() * sizeof(float)) == 1 &&
+        EVP_DigestFinal_ex(context, digest, &length) == 1 && length == sizeof(digest);
+    EVP_MD_CTX_free(context);
+    if (!ok) return {};
+#endif
     std::ostringstream out;
     for (auto byte : digest) out << std::hex << std::setw(2) << std::setfill('0') << int(byte);
     return out.str();
-#else
-    return {};
-#endif
 }
 
 std::string sourceKey(const LearningExample& example) {

@@ -69,6 +69,8 @@ if(WIN32)
         _WIN32_WINNT=0x0601
         NOMINMAX
         _CRT_SECURE_NO_WARNINGS)
+else()
+    target_link_libraries(ai_breathclick_core PRIVATE OpenSSL::Crypto)
 endif()
 
 set_target_properties(ai_breathclick_core PROPERTIES

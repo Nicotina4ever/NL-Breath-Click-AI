@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "core/util/runtime_paths.h"
 #include "studio_engine.h"
+#include "core/edit/audio_document.h"
+#include "core/learning/personal_profile.h"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -21,6 +23,14 @@ int main() {
     const auto library=bc::openSharedLibrary(bc::runtimeDirectory()/bc::libraryFileName("libmp3lame"));
     ok=ok && library && bc::librarySymbol(library,"lame_init");
     bc::closeSharedLibrary(library);
+    // Same PCM identity across platforms preserves the recording holdout.
+    bc::AudioBuffer pcm; pcm.sampleRate=48000; pcm.channels=1; pcm.samples={0.f,.25f,-.5f,1.f};
+    bc::AudioDocument document; ok=ok && document.adopt(pcm,"synthetic.wav");
+    bc::EditRegion region; region.startSample=0; region.endSample=4;
+    region.trainingEligible=true; region.decisionSource="user"; region.learningLabel="breath_confirmed";
+    document.addRegion(region);
+    const auto examples=bc::collectLearningExamples(document);
+    ok=ok && examples.size()==1 && examples[0].recordingId=="07654226a170fc33d8a70093f82f6ee4c508696801cfec9832d8392c062962d1";
     if(!ok){std::cerr<<"Platform runtime/hash contract failed: "<<error<<'\n';return 2;}
     std::cout<<"Platform OK: executable path, Unicode SHA-256 vectors and optional codec loader\n";
     return 0;
