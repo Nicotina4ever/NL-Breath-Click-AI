@@ -9,3 +9,5 @@
 #define BC_AUTHOR_W L"Nicola Lanci Voice Over"
 #define BC_EMAIL_W L"info@nicolalanci.com"
 #define BC_WEBSITE_W L"www.nicolalanci.com"
+
+#define BC_SOURCE_COMMIT "@BC_SOURCE_COMMIT@"

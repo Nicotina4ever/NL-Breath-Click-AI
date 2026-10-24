@@ -1,7 +1,9 @@
 -- SPDX-License-Identifier: MPL-2.0
 -- Real REAPER integration, exclusively in run_isolated.ps1's sacrificial profile.
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
-local X=dofile(here..'/../bc_studio_bridge.lua')
+local package=BCS_TEST_PACKAGE_DIR or (here..'/..')
+if BCS_TEST_PACKAGE_DIR then reaper.DeleteExtState('BreathClickStudio','engine',false) end
+local X=dofile(package..'/bc_studio_bridge.lua')
 local J=X.J
 assert(BCS_TEST_ROOT and reaper.CountTracks(0)==0 and reaper.CountMediaItems(0)==0,'Fresh isolated project required')
 local root=BCS_TEST_ROOT:gsub('\\','/')
@@ -44,6 +46,7 @@ local function item(track,source,pos,length,offset)
 end
 local function run()
     test(reaper.GetResourcePath():gsub('\\','/')==BCS_TEST_RESOURCE,'One existing portable and isolated profile')
+    if BCS_TEST_PACKAGE_DIR then test(X.engine():sub(1,#package)==package,'Independent installed backend; no standalone/development engine') end
     local source=root..'/source.wav'; fixture(source,10)
     reaper.InsertTrackAtIndex(0,false); local voice=reaper.GetTrack(0,0)
     reaper.InsertTrackAtIndex(1,false); local backing=reaper.GetTrack(0,1)
@@ -238,7 +241,7 @@ local function run()
     for i,e in ipairs(migrated.plan.events) do if e.learning_label=='missed_breath' then pending=i;test(not e.bcs_applied,'Migration uses actual old render signature, pending proposals stay pending') end end
     X.apply_selected({[pending]=true},'silence');wait()
     test(X.state(legacy).schema==2 and reaper.CountTakes(legacy)==2 and reaper.GetActiveTake(legacy)==original_legacy,'Old preview migrates to direct source editing without another take or track')
-    _G.BCS_PANEL_NO_RUN=true;local UI=dofile(here..'/../BreathClickStudio.lua');_G.BCS_PANEL_NO_RUN=nil
+    _G.BCS_PANEL_NO_RUN=true;local UI=dofile(package..'/BreathClickStudio.lua');_G.BCS_PANEL_NO_RUN=nil
     local rate_item=reaper.GetMediaItemTake_Item(reaper.GetMediaItemTakeByGUID(0,bs.take_guid));selected{rate_item}
     gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0);UI.draw()
     reaper.SetEditCurPos(25.5,false,false);UI.draw()

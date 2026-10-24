@@ -1,4 +1,4 @@
-﻿# SPDX-License-Identifier: MPL-2.0
+# SPDX-License-Identifier: MPL-2.0
 # Build a version-checked portable candidate from an explicitly selected build.
 [CmdletBinding()]
 param(
@@ -20,6 +20,10 @@ $exe = Join-Path $build 'bc_studio.exe'
 if (-not (Test-Path -LiteralPath $exe)) { throw "Missing build: $exe" }
 $builtVersion = (Get-Item -LiteralPath $exe).VersionInfo.ProductVersion
 if ($builtVersion -ne $Version) { throw "Version mismatch: binary=$builtVersion package=$Version" }
+if (-not $SourceCommit) { throw 'Release packaging requires an explicit public SourceCommit' }
+$capabilities = & (Join-Path $build 'bc_studio_cli.exe') capabilities | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0 -or $capabilities.source_commit -ne $SourceCommit) { throw 'Binary source provenance does not match requested public commit; reconfigure BC_SOURCE_COMMIT and rebuild' }
+
 $stage = Join-Path $root ('build\package_studio_' + $Version + '_' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $stage | Out-Null
 $files = @{}
@@ -90,8 +94,8 @@ $manifest = foreach ($file in Get-ChildItem -LiteralPath $stage -File -Recurse |
 ConvertTo-Json -InputObject @($manifest) -Depth 4 | Set-Content -LiteralPath (Join-Path $stage 'PACKAGE_MANIFEST.json') -Encoding UTF8
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
-$zip = Join-Path $dist "NL_Breath_Click_Studio_$Version.zip"
-$pending = Join-Path $dist ("NL_Breath_Click_Studio_$Version.pending_" + [guid]::NewGuid().ToString('N') + '.zip')
+$zip = Join-Path $dist "NL_Breath_Click_Studio_Windows_Standalone_$Version.zip"
+$pending = Join-Path $dist ("NL_Breath_Click_Studio_Windows_Standalone_$Version.pending_" + [guid]::NewGuid().ToString('N') + '.zip')
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $pending -CompressionLevel Optimal
 # Replace only after the pending archive is complete; no backup/history copy.
 if (Test-Path -LiteralPath $zip) { [IO.File]::Replace($pending,$zip,[NullString]::Value) }

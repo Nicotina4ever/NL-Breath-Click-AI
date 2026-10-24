@@ -40,7 +40,7 @@ LEGGIMI_AVVIO.txt              avvio rapido
 TESTING.md          protocollo e checklist di collaudo
 CHANGELOG.md                   note della release candidate
 THIRD_PARTY_NOTICES.md         attribuzioni
-NL_Breath_Click_Studio_1.0.0-rc.2.zip.sha256                 hash del pacchetto (fornito accanto allo ZIP)
+NL_Breath_Click_Studio_Windows_Standalone_1.0.0-rc.2.zip.sha256                 hash del pacchetto (fornito accanto allo ZIP)
 ```
 
 ## Requisiti

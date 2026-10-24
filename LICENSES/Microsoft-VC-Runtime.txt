@@ -1,7 +1,7 @@
 Microsoft Visual C++ Redistributable — notice and redistribution conditions
 
 The following files are Microsoft Visual C++ Redistributable components,
-included unmodified so that BreathClick Studio can run on Windows without a
+included unmodified so that NL Breath Click Studio can run on Windows without a
 separate redistributable installation:
 
   msvcp140.dll
@@ -15,7 +15,7 @@ separate redistributable installation:
   vccorlib140.dll
   concrt140.dll
 
-These components are not part of BreathClick Studio and are not licensed
+These components are not part of NL Breath Click Studio and are not licensed
 under the BreathClick terms. They are Microsoft redistributable files and
 remain subject to the Microsoft Visual Studio license terms.
 

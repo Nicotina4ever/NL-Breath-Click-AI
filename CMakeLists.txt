@@ -30,6 +30,7 @@ set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party" CACHE PATH "Dipendenze est
 set(BC_MODEL_DIR "${CMAKE_SOURCE_DIR}/models/generale" CACHE PATH "Modello Respiro-en verificato")
 set(BC_ONNX_RUNTIME_FILE "${THIRD_PARTY_DIR}/onnxruntime/onnxruntime.dll" CACHE FILEPATH "Optional pinned ONNX runtime DLL")
 set(BC_STUDIO_VERSION "${PROJECT_VERSION}-rc.2")
+set(BC_SOURCE_COMMIT "unknown" CACHE STRING "Public source commit used to build release binaries")
 configure_file(shared/version.h.in "${CMAKE_BINARY_DIR}/generated/version.h" @ONLY)
 include_directories("${CMAKE_BINARY_DIR}/generated")
 option(BC_REQUIRE_RELEASE_TESTS "Richiedi tutte le dipendenze dei test di release" OFF)

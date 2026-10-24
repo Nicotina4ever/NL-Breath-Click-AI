@@ -1,8 +1,16 @@
 # NL Breath Click Studio
 
 Editor audio offline Windows e integrazione REAPER per respiri e click nel
-doppiaggio e nello speakeraggio. Standalone **1.0.0-rc.2**, REAPER **0.2 preview**.
+doppiaggio e nello speakeraggio. Standalone **1.0.0-rc.2**, REAPER Windows Beta **1.0.0-rc.2**.
 Ascolto professionale e prova su Windows pulito restano necessari per la 1.0.
+
+## Download e installazione
+
+[Pre-release Windows 1.0.0-rc.2](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/tag/v1.0.0-rc.2):
+ZIP **Windows Standalone** e **REAPER Windows Beta**, indipendenti.
+[Installazione e ReaPack](docs/DISTRIBUTION.md) · [Redistribuzione](docs/REDISTRIBUTION.md).
+Indice ReaPack: `https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/main/index.xml`.
+Scegliere esplicitamente la pre-release in ReaPack; la standalone non e' richiesta.
 
 ## Funzioni
 

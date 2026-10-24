@@ -9,3 +9,5 @@
 BreathClick source: Mozilla Public License 2.0 (MPL-2.0), see ../LICENSE. These third-party notices do not
 change the terms of their respective components. LAME's exact source and
 build files are shipped under sources/lame/ in the standalone package.
+
+- `ONNX-Runtime-ThirdPartyNotices.txt`: complete third-party notices from the matching ONNX Runtime 1.31.0 distribution.

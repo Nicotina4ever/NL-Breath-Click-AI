@@ -1,10 +1,23 @@
 -- SPDX-License-Identifier: MPL-2.0
 -- @description NL Breath Click Studio - editing diretto, TimeMap e apprendimento
--- @version 0.2.0-preview
+-- @version 1.0.0-rc.2
 -- @author Nicola Lanci Voice Over
+-- @link https://www.nicolalanci.com
+-- @about Independent Windows x64 beta. ReaPack installs scripts; verified backend installs on first use.
+-- @provides
+--   [main] BreathClickStudio.lua
+--   [nomain] bc_studio_bridge.lua
+--   [nomain] bc_direct.lua
+--   [nomain] bc_direct_view.lua
+--   [nomain] bcnext_core.lua
+--   [nomain] BreathClickNext_config.lua
+--   [nomain] bc_json.lua
+--   [nomain] bc_job.ps1
+--   [nomain] bc_runtime.lua
+--   [nomain] bc_runtime.ps1
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local X=dofile(here..'/bc_studio_bridge.lua')
-local UI={identity={name='NL Breath Click Studio',version='1.0.0-rc.2',adapter_version='0.2.0-preview',author='Nicola Lanci Voice Over',email='info@nicolalanci.com',website='www.nicolalanci.com'},bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
+local UI={identity={name='NL Breath Click Studio',version='1.0.0-rc.2',adapter_version='1.0.0-rc.2-beta',author='Nicola Lanci Voice Over',email='info@nicolalanci.com',website='www.nicolalanci.com'},bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
 local function invoke(fn)
     local previous=X.status; X.last_error=nil
     local ok,err=xpcall(fn,debug.traceback)
@@ -13,7 +26,8 @@ local function invoke(fn)
     UI.refresh=-1
 end
 function UI.action(name)
-    if name=='Informazioni' then UI.about_open=true
+    if name=='Installa motore' then X.runtime.install(here)
+    elseif name=='Informazioni' then UI.about_open=true
     elseif name=='Chiudi info' then UI.about_open=false
     elseif name=='Sito web' or name=='Email' then
         local target=name=='Email' and 'mailto:info@nicolalanci.com' or 'https://www.nicolalanci.com'
@@ -98,6 +112,8 @@ end
 UI.wave=dofile(here..'/bc_direct_view.lua')(UI,X,invoke,text,color,inside)
 function UI.draw()
     local key=gfx.getchar() -- update native mouse/key events before reading their state
+    local runtime_status=X.runtime.tick(here)
+    if runtime_status then X.status=runtime_status end
     X.tick()
     if UI.about_open then
         if key==27 then UI.about_open=false; return true end
@@ -167,7 +183,7 @@ function UI.draw()
         {{'Attenua',85},{'Silenzia',85},{'Taglia',76},{'Dimezza',89},{'Compatta voce',137},{'Mantieni sync',137}},
         {{'Tutte',63},{'Includi',78},{'Escludi',78},{'Conferma respiro',153},{'Falso positivo',135},{'Mancato',87}},
         {{'Originale',98},{'Elaborato',98},{'Ascolta',90},{'Undo',73},{'Redo',73},{'Fusion / DSP',119},{'Motore',82},{'Aiuto',70}},
-        {{'Esporta etichette',158},{'Crea profilo',120},{'Profilo',84},{'Carica profilo',139},{'Informazioni',125}},
+        {{'Esporta etichette',158},{'Crea profilo',120},{'Profilo',84},{'Carica profilo',139},{'Informazioni',125},{'Installa motore',139}},
     }
     for row,buttons in ipairs(rows) do local x=14; for _,b in ipairs(buttons) do button(b[1],x,54+(row-1)*35,b[2],clicked); x=x+b[2]+6 end end
     -- A/B and Undo can replace the source while a button is being drawn.
@@ -241,6 +257,8 @@ function UI.draw()
 end
 function UI.open()
     X.load_settings()
+    local engine_ready=pcall(X.engine)
+    if not engine_ready and reaper.file_exists(here..'/runtime-release.json') then X.runtime.install(here) end
     gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0)
     reaper.atexit(function() X.cancel(); X.stop_preview(); UI.wave.close(); gfx.quit() end)
     local function frame()

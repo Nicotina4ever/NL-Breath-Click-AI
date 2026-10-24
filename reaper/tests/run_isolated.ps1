@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param([string]$ReaperExecutable='',
       [string]$WorkRoot='', [string]$Script='', [switch]$KeepOpen, [int]$TimeoutSeconds=240,
-      [string]$TestProject='', [switch]$RunGuiInputTests)
+      [string]$TestProject='', [switch]$RunGuiInputTests,[string]$PackageDirectory='')
 $ErrorActionPreference='Stop'
 $repo=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if(-not $WorkRoot) { $WorkRoot=Join-Path $repo ('build\reaper_sandbox\runs\run_'+[guid]::NewGuid().ToString('N')) }
@@ -105,6 +105,11 @@ function ConvertTo-LuaLiteral([string]$Value) {
 $code="BCS_TEST_ROOT = $(ConvertTo-LuaLiteral $WorkRoot)`nBCS_KEEP_OPEN = $($KeepOpen.IsPresent.ToString().ToLowerInvariant())`n"
 $code+="local expected = $(ConvertTo-LuaLiteral $portable.Replace('\','/'))`n"
 $code+="BCS_TEST_RESOURCE = expected`n"
+if($PackageDirectory) {
+    $PackageDirectory=(Resolve-Path -LiteralPath $PackageDirectory).Path
+    if(-not $PackageDirectory.StartsWith($buildRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'Only isolated build-local package tests are allowed'}
+    $code+="BCS_TEST_PACKAGE_DIR = $(ConvertTo-LuaLiteral $PackageDirectory.Replace('\','/'))`n"
+}
 if($TestProject) {
     $TestProject=(Resolve-Path -LiteralPath $TestProject).Path
     if(-not $TestProject.StartsWith((Join-Path $repo 'build\reaper_sandbox')+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Only a sandbox project may be used for GUI testing' }

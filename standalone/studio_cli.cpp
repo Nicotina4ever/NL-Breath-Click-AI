@@ -911,7 +911,10 @@ static int runStudioCli(int argc, char** argv) {
     if (command == "verify-source") return commandVerifySource(argc, argv);
     if (command == "profile-train" || command == "profile-filter" || command == "labels-export") return commandLearning(argc, argv);
     if (command == "capabilities") {
-        std::cout << "{\"reaper_bridge\":1,\"direct_editing\":2,\"personal_profiles\":1,\"edit_plan_schema\":2}\n";
+        std::cout << "{\"protocol\":\"nl.breathclick.cli\",\"protocol_version\":1,"
+                     "\"version\":\"" BC_STUDIO_VERSION "\",\"source_commit\":\"" BC_SOURCE_COMMIT "\","
+                     "\"backend\":\"cpu\",\"reaper_bridge\":1,\"direct_editing\":2,"
+                     "\"personal_profiles\":1,\"edit_plan_schema\":2}\n";
         return 0;
     }
     if (command == "probe") {

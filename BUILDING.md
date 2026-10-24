@@ -76,7 +76,7 @@ Core sono indipendenti da questi pesi. Non distribuire build con pesi privati.
 ```powershell
 powershell -File scripts/package_studio.ps1 -SourceCommit "<commit-dei-binari>"
 powershell -File scripts/verify_release.ps1 `
-  -ZipPath dist/NL_Breath_Click_Studio_1.0.0-rc.2.zip `
+  -ZipPath dist/NL_Breath_Click_Studio_Windows_Standalone_1.0.0-rc.2.zip `
   -PythonExecutable "<python.exe>" -RunGuiTests
 ```
 

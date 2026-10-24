@@ -4,7 +4,8 @@
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local J=dofile(here..'/bc_json.lua')
 local B=dofile(here..'/bcnext_core.lua')
-local X={J=J,B=B,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15},busy=false}
+local R=dofile(here..'/bc_runtime.lua')
+local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15},busy=false}
 local KEY='P_EXT:BreathClickStudio'
 local LINK='P_EXT:BreathClickStudioResult'
 local function check(ok,err) if not ok then error(err or 'REAPER operation failed',0) end; return ok end
@@ -34,11 +35,13 @@ function X.project_path()
     return filename:match('^(.*)[/\\]')
 end
 function X.engine()
+    local packaged=R.engine(here)
+    if packaged then return packaged end
     local configured=reaper.GetExtState('BreathClickStudio','engine')
     if configured~='' and reaper.file_exists(configured) then return configured end
     local built=here..'/../build/bin/Release/bc_studio_cli.exe'
     if reaper.file_exists(built) then return built end
-    error('Seleziona bc_studio_cli.exe con il pulsante Motore.',0)
+    error('Usa Installa motore (ReaPack) o seleziona bc_studio_cli.exe con Motore.',0)
 end
 function X.configure_engine()
     local ok,path=reaper.GetUserFileNameForRead('','Seleziona bc_studio_cli.exe','exe')
