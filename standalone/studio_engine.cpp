@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "studio_engine.h"
+#ifndef _WIN32
+#include <openssl/evp.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -256,10 +259,20 @@ bool sha256File(const std::string& path, std::string& hex, std::string* error) {
     BCryptCloseAlgorithmProvider(algorithm, 0);
     return ok;
 #else
-    (void)path;
-    (void)hex;
-    if (error) *error = "SHA-256 disponibile solo su Windows";
-    return false;
+    std::ifstream file(std::filesystem::u8path(path),std::ios::binary);
+    if(!file){if(error)*error="file non apribile per SHA-256";return false;}
+    auto* context=EVP_MD_CTX_new();
+    if(!context){if(error)*error="SHA-256 allocation failed";return false;}
+    bool ok=EVP_DigestInit_ex(context,EVP_sha256(),nullptr)==1;
+    std::vector<char> buffer(1u<<20);
+    while(ok && file){file.read(buffer.data(),buffer.size());auto count=file.gcount();if(count>0)ok=EVP_DigestUpdate(context,buffer.data(),static_cast<size_t>(count))==1;}
+    unsigned char digest[EVP_MAX_MD_SIZE];unsigned int length=0;
+    ok=ok && !file.bad() && EVP_DigestFinal_ex(context,digest,&length)==1 && length==32;
+    EVP_MD_CTX_free(context);
+    if(!ok){if(error)*error="SHA-256 read/digest failed";return false;}
+    std::ostringstream stream;stream<<std::hex<<std::setfill('0');
+    for(unsigned int i=0;i<length;++i)stream<<std::setw(2)<<static_cast<int>(digest[i]);
+    hex=stream.str();return true;
 #endif
 }
 

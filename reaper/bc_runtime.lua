@@ -3,6 +3,7 @@
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local J=dofile(here..'/bc_json.lua')
 local R={}
+local binary='bc_studio_cli'..(package.config:sub(1,1)=='\\' and '.exe' or '')
 local function manifest(folder)
     if R.manifest_folder==folder then return R.manifest end
     local value=J.read(folder..'/runtime-release.json')
@@ -10,11 +11,11 @@ local function manifest(folder)
     R.manifest_folder=folder;R.manifest=value;return value
 end
 function R.engine(folder)
-    local direct=folder..'/bin/bc_studio_cli.exe'
+    local direct=folder..'/bin/'..binary
     if reaper.file_exists(direct) then return direct end
     local m=manifest(folder)
     if m then
-        local installed=folder..'/runtime/'..m.version..'/bin/bc_studio_cli.exe'
+        local installed=folder..'/runtime/'..m.version..'/bin/'..binary
         local ready=J.read(folder..'/runtime/'..m.version..'/READY.json')
         if ready and ready.source_commit==m.source_commit and ready.archive_sha256==m.sha256 and reaper.file_exists(installed) then return installed end
     end

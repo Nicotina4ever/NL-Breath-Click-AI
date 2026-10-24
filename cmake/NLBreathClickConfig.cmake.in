@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MPL-2.0
+@PACKAGE_INIT@
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+if(NOT WIN32)
+    find_dependency(OpenSSL 3 COMPONENTS Crypto)
+endif()
+include("${CMAKE_CURRENT_LIST_DIR}/NLBreathClickTargets.cmake")
+check_required_components(NLBreathClick)

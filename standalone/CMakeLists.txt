@@ -4,6 +4,7 @@
 # ============================================================================
 project(bc_studio LANGUAGES CXX)
 
+if(BC_BUILD_STUDIO_CLI)
 # --- CLI: pipeline testabile senza GUI -------------------------------------
 add_executable(bc_studio_cli studio_cli.cpp reaper_slice.cpp reaper_learning.cpp)
 
@@ -28,6 +29,9 @@ set_target_properties(bc_studio_cli PROPERTIES
     FOLDER "studio")
 bc_deploy_runtime_dependencies(bc_studio_cli)
 
+endif()
+
+if(BC_BUILD_STUDIO)
 # --- GUI: riusa WaveformView, AudioPlayer e AudioDocument ------------------
 add_executable(bc_studio WIN32
     studio_main.cpp
@@ -64,6 +68,8 @@ set_target_properties(bc_studio PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     FOLDER "studio")
 bc_deploy_runtime_dependencies(bc_studio)
+endif()
+
 
 
 # Porta accanto agli eseguibili il runtime ONNX e il modello Respiro-en.
@@ -71,10 +77,13 @@ set(BC_ONNX_DLL "${BC_ONNX_RUNTIME_FILE}")
 set(BC_RESPIRO_MODEL "${BC_MODEL_DIR}/respiro-en-dinamico.onnx")
 set(BC_RESPIRO_DATA "${BC_MODEL_DIR}/respiro-en-dinamico.onnx.data")
 foreach(BC_TARGET bc_studio_cli bc_studio)
+    if(NOT TARGET ${BC_TARGET})
+        continue()
+    endif()
     if(EXISTS "${BC_ONNX_DLL}")
         add_custom_command(TARGET ${BC_TARGET} POST_BUILD
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-                    "${BC_ONNX_DLL}" "$<TARGET_FILE_DIR:${BC_TARGET}>/onnxruntime.dll")
+                    "${BC_ONNX_DLL}" "$<TARGET_FILE_DIR:${BC_TARGET}>/${CMAKE_SHARED_LIBRARY_PREFIX}onnxruntime${CMAKE_SHARED_LIBRARY_SUFFIX}")
     endif()
     if(EXISTS "${BC_RESPIRO_MODEL}")
         add_custom_command(TARGET ${BC_TARGET} POST_BUILD
@@ -89,6 +98,7 @@ foreach(BC_TARGET bc_studio_cli bc_studio)
     endif()
 endforeach()
 
+if(BC_BUILD_TESTS AND BC_BUILD_STUDIO_CLI)
 add_test(NAME bc_studio_cli_selftest COMMAND bc_studio_cli selftest)
 set_tests_properties(bc_studio_cli_selftest PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:bc_studio_cli>"
@@ -119,9 +129,11 @@ if(BC_REQUIRE_RELEASE_TESTS)
     endif()
 endif()
 if(BC_PYTHON_EXECUTABLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_studio_pipeline.py")
+    if(WIN32 AND BC_BUILD_STUDIO)
     add_test(NAME bc_studio_portable_audio
         COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_portable_audio.py")
     set_tests_properties(bc_studio_portable_audio PROPERTIES TIMEOUT 180)
+    endif()
     add_test(NAME bc_studio_pipeline_formats
         COMMAND "${BC_PYTHON_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_studio_pipeline.py")
@@ -156,7 +168,7 @@ endif()
 
 # Progetto multi-file: salvataggio/riapertura senza dialoghi, con due WAV
 # sintetici e verifica che gli originali restino invariati.
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/project_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/project_test.ps1")
     add_test(NAME bc_studio_project_gui
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/project_test.ps1")
@@ -164,7 +176,7 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/project_test.ps1")
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         TIMEOUT 180)
 endif()
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/workflow_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/workflow_test.ps1")
     add_test(NAME bc_studio_workflow
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/workflow_test.ps1")
@@ -172,7 +184,7 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/workflow_test.ps1")
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         TIMEOUT 300)
 endif()
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/gui_interaction_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/gui_interaction_test.ps1")
     add_test(NAME bc_studio_gui_interaction
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/gui_interaction_test.ps1")
@@ -180,7 +192,7 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/gui_interaction_test.ps1")
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         TIMEOUT 180)
 endif()
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/performance_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/performance_test.ps1")
     add_test(NAME bc_studio_performance
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/performance_test.ps1")
@@ -189,7 +201,7 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/performance_test.ps1")
         FOLDER "editor")
 endif()
 
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/detection_settings_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/detection_settings_test.ps1")
     add_test(NAME bc_studio_detection_settings
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/detection_settings_test.ps1")
@@ -198,7 +210,7 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/detection_settings_test.ps1")
         FOLDER "editor")
 endif()
 
-if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/bulk_events_test.ps1")
+if(WIN32 AND BC_BUILD_STUDIO AND EXISTS "${CMAKE_SOURCE_DIR}/editor/bulk_events_test.ps1")
     add_test(NAME bc_studio_bulk_events
         COMMAND powershell -NoProfile -ExecutionPolicy Bypass
                 -File "${CMAKE_SOURCE_DIR}/editor/bulk_events_test.ps1")
@@ -208,15 +220,17 @@ if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/editor/bulk_events_test.ps1")
 endif()
 
 # Test the selected build tree; never fall back to a pre-existing workspace binary.
+if(WIN32 AND BC_BUILD_STUDIO)
 add_test(NAME bc_studio_rc2_gui COMMAND powershell -NoProfile -ExecutionPolicy Bypass
     -File "${CMAKE_SOURCE_DIR}/editor/rc2_workflow_test.ps1")
 set_tests_properties(bc_studio_rc2_gui PROPERTIES TIMEOUT 180 RESOURCE_LOCK windows_gui)
+endif()
 get_property(BC_DIRECTORY_TESTS DIRECTORY PROPERTY TESTS)
 foreach(BC_TEST IN LISTS BC_DIRECTORY_TESTS)
     set_property(TEST ${BC_TEST} APPEND PROPERTY ENVIRONMENT
-        "BC_TEST_BIN=${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-        "BC_STUDIO_CLI=${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bc_studio_cli.exe"
-        "BC_STUDIO_GEN=${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bc_cli.exe"
+        "BC_TEST_BIN=$<TARGET_FILE_DIR:bc_studio_cli>"
+        "BC_STUDIO_CLI=$<TARGET_FILE:bc_studio_cli>"
+        "BC_STUDIO_GEN=$<TARGET_FILE:bc_cli>"
         "PYTHONDONTWRITEBYTECODE=1"
         "BC_STUDIO_WORK=${BC_STUDIO_TEST_WORK}")
     set_tests_properties(${BC_TEST} PROPERTIES FAIL_REGULAR_EXPRESSION "SKIP:;SKIPPED")
@@ -224,3 +238,5 @@ foreach(BC_TEST IN LISTS BC_DIRECTORY_TESTS)
         set_tests_properties(${BC_TEST} PROPERTIES RESOURCE_LOCK windows_gui)
     endif()
 endforeach()
+
+endif()

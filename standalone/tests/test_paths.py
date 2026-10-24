@@ -12,7 +12,9 @@ WORKSPACE_ROOT = PROJECT_ROOT.parent
 DEFAULT_WORK = PROJECT_ROOT / "build" / "test_work"
 WORK = Path(os.environ.get("BC_STUDIO_WORK", DEFAULT_WORK))
 INPUT = Path(os.environ.get("BC_STUDIO_INPUT", WORK / "input"))
-CLI = Path(os.environ.get("BC_STUDIO_CLI", Path(os.environ.get("BC_TEST_BIN", PROJECT_ROOT / "build" / "bin" / "Release")) / "bc_studio_cli.exe"))
+DEFAULT_BIN = PROJECT_ROOT / "build" / "bin"
+if os.name == "nt": DEFAULT_BIN = DEFAULT_BIN / "Release"
+CLI = Path(os.environ.get("BC_STUDIO_CLI", Path(os.environ.get("BC_TEST_BIN", DEFAULT_BIN)) / ("bc_studio_cli.exe" if os.name=="nt" else "bc_studio_cli")))
 
-BIN = Path(os.environ.get("BC_TEST_BIN", PROJECT_ROOT / "build" / "bin" / "Release"))
-GEN = Path(os.environ.get("BC_STUDIO_GEN", BIN / "bc_cli.exe"))
+BIN = Path(os.environ.get("BC_TEST_BIN", DEFAULT_BIN))
+GEN = Path(os.environ.get("BC_STUDIO_GEN", BIN / ("bc_cli.exe" if os.name=="nt" else "bc_cli")))

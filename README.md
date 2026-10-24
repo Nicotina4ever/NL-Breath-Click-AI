@@ -81,3 +81,9 @@ destinato a GitHub rimangono separati.
 [www.nicolalanci.com](https://www.nicolalanci.com).
 Versione e contatti sono disponibili in **Aiuto > Informazioni** nella
 standalone e nel pulsante **Informazioni** del pannello REAPER.
+
+## Integrazione nella suite e portabilita
+
+[SDK C++ e protocollo CLI/JSON](docs/INTEGRATION_API.md) ·
+[Core headless, worker POSIX e CI](docs/PORTABILITY.md).
+La GUI distribuita rimane Windows; i pacchetti della pre-release sono immutabili.

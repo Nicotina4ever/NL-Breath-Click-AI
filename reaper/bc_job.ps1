@@ -41,6 +41,7 @@ function Run-Engine([string[]]$Arguments,[switch]$ReturnOutput) {
 }
 try {
     $job=Get-Content -LiteralPath $Request -Raw -Encoding UTF8 | ConvertFrom-Json
+    if($null -ne $job.schema -and ($job.schema -ne 1 -or ($job.schema -isnot [int] -and $job.schema -isnot [long]))){throw 'Unsupported job schema'}
     if((Split-Path $job.exe -Leaf) -ne 'bc_studio_cli.exe' -or -not (Test-Path -LiteralPath $job.exe -PathType Leaf)) { throw 'Select bc_studio_cli.exe from a verified build' }
     try {
         $capabilities=Run-Engine -Arguments @('capabilities') -ReturnOutput | ConvertFrom-Json

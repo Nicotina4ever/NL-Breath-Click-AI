@@ -5,12 +5,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import numpy as np
 import soundfile as sf
 
 repo = Path(__file__).resolve().parents[2]
-exe = Path(os.environ['BC_TEST_BIN']) / 'bc_studio_cli.exe'
+exe = Path(os.environ['BC_TEST_BIN']) / ('bc_studio_cli.exe' if os.name=='nt' else 'bc_studio_cli')
 worker = repo / 'reaper' / 'bc_job.ps1'
 
 def call(*args, ok=True):
@@ -57,8 +58,7 @@ with tempfile.TemporaryDirectory(prefix='bc_reaper_bridge_') as temp:
     def run_job(folder, data, cancel=False):
         path = folder/'request.json'; path.write_text(json.dumps(data), encoding='utf-8')
         if cancel: (folder/'cancel').touch()
-        subprocess.run(['powershell','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
-                        '-File', str(worker), '-Request', str(path)], check=True, capture_output=True, timeout=45)
+        subprocess.run(([sys.executable,str(repo/'reaper/bc_job.py'),'--request',str(path)] if os.name!='nt' or os.environ.get('BC_PORTABLE_WORKER')=='1' else ['powershell','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(worker),'-Request',str(path)]),check=True,capture_output=True,timeout=45)
         return json.loads((folder/'result.json').read_text(encoding='utf-8-sig'))
     result = run_job(jobroot, request)
     assert result['status'] == 'complete', result

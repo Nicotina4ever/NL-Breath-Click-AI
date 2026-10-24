@@ -6,6 +6,8 @@ local J=dofile(here..'/bc_json.lua')
 local B=dofile(here..'/bcnext_core.lua')
 local R=dofile(here..'/bc_runtime.lua')
 local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15},busy=false}
+local WINDOWS=package.config:sub(1,1)=='\\'
+local EXE='bc_studio_cli'..(WINDOWS and '.exe' or '')
 local KEY='P_EXT:BreathClickStudio'
 local LINK='P_EXT:BreathClickStudioResult'
 local function check(ok,err) if not ok then error(err or 'REAPER operation failed',0) end; return ok end
@@ -39,13 +41,16 @@ function X.engine()
     if packaged then return packaged end
     local configured=reaper.GetExtState('BreathClickStudio','engine')
     if configured~='' and reaper.file_exists(configured) then return configured end
-    local built=here..'/../build/bin/Release/bc_studio_cli.exe'
-    if reaper.file_exists(built) then return built end
+    local shared=os.getenv('NL_AUDIO_ENGINE')
+    if shared and reaper.file_exists(shared) then return shared end
+    for _,built in ipairs{here..'/../build/bin/Release/'..EXE,here..'/../build/bin/'..EXE} do
+        if reaper.file_exists(built) then return built end
+    end
     error('Usa Installa motore (ReaPack) o seleziona bc_studio_cli.exe con Motore.',0)
 end
 function X.configure_engine()
-    local ok,path=reaper.GetUserFileNameForRead('','Seleziona bc_studio_cli.exe','exe')
-    if ok then check(path:match('[/\\]bc_studio_cli%.exe$'),'Scegli bc_studio_cli.exe'); reaper.SetExtState('BreathClickStudio','engine',path,true) end
+    local ok,path=reaper.GetUserFileNameForRead('','Seleziona il motore bc_studio_cli',WINDOWS and 'exe' or '')
+    if ok then check(path:match('[/\\]'..EXE:gsub('%.','%%.')..'$'),'Scegli '..EXE); reaper.SetExtState('BreathClickStudio','engine',path,true) end
 end
 function X.load_settings()
     local saved=reaper.GetExtState('BreathClickStudio','settings')
@@ -231,7 +236,9 @@ function X.select_event(index,play)
     end
 end
 local function quote(value)
-    check(not value:find('[\r\n"]'),'Percorso non valido per il launcher')
+    check(not value:find('[\r\n]'),'Percorso non valido per il launcher')
+    if not WINDOWS then return "'"..value:gsub("'","'\"'\"'").."'" end
+    check(not value:find('"'),'Percorso non valido per il launcher')
     return '"'..value..'"'
 end
 local function relative(path,root)
@@ -245,8 +252,14 @@ local function new_job(root)
     return folder
 end
 local function launch(entry)
+    entry.request.schema=1
     check(J.write(entry.folder..'/request.json',entry.request))
-    local command='powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File '..quote(here..'/bc_job.ps1')..' -Request '..quote(entry.folder..'/request.json')
+    local command
+    if WINDOWS then
+        command='powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File '..quote(here..'/bc_job.ps1')..' -Request '..quote(entry.folder..'/request.json')
+    else
+        command='python3 '..quote(here..'/bc_job.py')..' --request '..quote(entry.folder..'/request.json')
+    end
     local started=reaper.ExecProcess(command,-2)
     check(started~=nil,'Avvio worker fallito')
     entry.started=reaper.time_precise()

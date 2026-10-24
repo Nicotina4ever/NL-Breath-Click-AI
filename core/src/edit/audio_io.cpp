@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "core/edit/audio_io.h"
 #include "core/util/atomic_file.h"
+#include "core/util/runtime_paths.h"
 
 #include <algorithm>
 #include <cctype>
@@ -32,7 +33,7 @@ namespace bc {
 namespace {
 
 struct LameApi {
-    HMODULE module = nullptr;
+    LibraryHandle module = nullptr;
     decltype(&lame_init) init = nullptr;
     decltype(&lame_close) close = nullptr;
     decltype(&lame_set_num_samples) setNumSamples = nullptr;
@@ -56,7 +57,7 @@ struct LameApi {
 
     template <typename T>
     bool bind(T& target, const char* name) {
-        target = reinterpret_cast<T>(GetProcAddress(module, name));
+        target = reinterpret_cast<T>(librarySymbol(module, name));
         if (!target) loadError = std::string("simbolo LAME mancante: ") + name;
         return target != nullptr;
     }
@@ -64,21 +65,11 @@ struct LameApi {
     bool load() {
         if (attempted) return module != nullptr;
         attempted = true;
-#ifdef _WIN32
-        wchar_t exePath[MAX_PATH] = {};
-        if (GetModuleFileNameW(nullptr, exePath, MAX_PATH) > 0) {
-            std::wstring local(exePath);
-            const size_t slash = local.find_last_of(L"\\/");
-            if (slash != std::wstring::npos) local.resize(slash + 1);
-            local += L"libmp3lame.dll";
-            module = LoadLibraryExW(local.c_str(), nullptr,
-                                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
-                                    LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-        }
-        if (!module) module = LoadLibraryW(L"libmp3lame.dll");
-#endif
+        const auto local=runtimeDirectory()/libraryFileName("libmp3lame");
+        module=openSharedLibrary(local);
+
         if (!module) {
-            loadError = "libmp3lame.dll non trovata accanto all'eseguibile";
+            loadError = "encoder LAME non trovato nella directory runtime selezionata";
             return false;
         }
         bool ok = bind(init, "lame_init") &&
@@ -100,7 +91,7 @@ struct LameApi {
                   bind(encodeFlush, "lame_encode_flush") &&
                   bind(getLameTagFrame, "lame_get_lametag_frame");
         if (!ok) {
-            FreeLibrary(module);
+            closeSharedLibrary(module);
             module = nullptr;
         }
         return ok;
@@ -109,7 +100,8 @@ struct LameApi {
 
 LameApi& lameApi() {
     static LameApi api;
-    api.load();
+    static const bool loaded=api.load();
+    (void)loaded;
     return api;
 }
 

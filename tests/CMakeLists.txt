@@ -228,3 +228,10 @@ add_test(NAME bc_project_tests COMMAND bc_project_tests)
 set_tests_properties(bc_project_tests PROPERTIES
     WORKING_DIRECTORY "$<TARGET_FILE_DIR:bc_project_tests>"
     TIMEOUT 120)
+
+add_executable(bc_platform_tests test_platform.cpp)
+target_link_libraries(bc_platform_tests PRIVATE BreathClick::StudioEngine)
+set_target_properties(bc_platform_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+bc_deploy_runtime_dependencies(bc_platform_tests)
+add_test(NAME bc_platform_tests COMMAND bc_platform_tests)
+set_tests_properties(bc_platform_tests PROPERTIES TIMEOUT 30)

@@ -58,9 +58,10 @@ lua.globals()['panel'] = panel
 lua.execute("""
 local command
 reaper.ExecProcess=function(text,timeout) command=text; assert(timeout==-2); return '' end
+reaper.GetOS=function() return package.config:sub(1,1)=='\\\\' and 'Win64' or 'Linux' end
 panel.action('Informazioni'); assert(panel.about_open)
-panel.action('Sito web'); assert(command=='cmd.exe /d /c start "" "https://www.nicolalanci.com"')
-panel.action('Email'); assert(command=='cmd.exe /d /c start "" "mailto:info@nicolalanci.com"')
+panel.action('Sito web'); assert(command:find('https://www.nicolalanci.com',1,true))
+panel.action('Email'); assert(command:find('mailto:info@nicolalanci.com',1,true))
 panel.action('Chiudi info'); assert(not panel.about_open)
 -- Esc closes only Information, preserving the editing panel.
 panel.action('Informazioni')

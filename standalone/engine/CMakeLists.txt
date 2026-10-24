@@ -8,9 +8,14 @@ add_library(bc_studio_engine STATIC
     ../studio_project.cpp)
 add_library(BreathClick::StudioEngine ALIAS bc_studio_engine)
 target_include_directories(bc_studio_engine
-    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/.."
+    PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick>"
     PRIVATE "${THIRD_PARTY_DIR}/onnxruntime/include")
 target_link_libraries(bc_studio_engine PUBLIC AI::Core)
+target_compile_features(bc_studio_engine PUBLIC cxx_std_17)
+if(NOT WIN32)
+    target_link_libraries(bc_studio_engine PRIVATE OpenSSL::Crypto)
+endif()
 if(WIN32)
     target_link_libraries(bc_studio_engine PUBLIC bcrypt)
 endif()

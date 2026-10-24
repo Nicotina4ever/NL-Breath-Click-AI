@@ -17,6 +17,7 @@
 #endif
 
 #include "core/dsp/resampler.h"
+#include "core/util/runtime_paths.h"
 #include "kiss_fftr.h"
 #include "onnxruntime_c_api.h"
 
@@ -31,32 +32,19 @@ constexpr int kHop = 160;
 constexpr int kMelBands = 128;
 constexpr int kChannels = 3;
 
-std::string toUtf8(const std::wstring& text) {
-    if (text.empty()) return {};
-    const int needed = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, nullptr, 0, nullptr, nullptr);
-    std::string out(static_cast<size_t>(needed - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, out.data(), needed, nullptr, nullptr);
-    return out;
-}
-
-std::filesystem::path executableDirectory() {
-#ifdef _WIN32
-    wchar_t path[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, path, MAX_PATH);
-    return std::filesystem::path(path).parent_path();
-#else
-    return std::filesystem::current_path();
-#endif
-}
-
 std::string resolveModelPath(const std::string& configured) {
     if (!configured.empty()) {
         std::error_code ec;
         const auto path = std::filesystem::u8path(configured);
         return std::filesystem::is_regular_file(path, ec) ? path.u8string() : std::string{};
     }
+    const auto shared=bc::environmentPath("NL_AUDIO_MODEL_DIR");
+    if(!shared.empty()) {
+        std::error_code error;const auto model=shared/"respiro-en-dinamico.onnx";
+        return std::filesystem::is_regular_file(model,error)?model.u8string():std::string{};
+    }
     std::vector<std::filesystem::path> candidates;
-    const auto exe = executableDirectory();
+    const auto exe = bc::executableDirectory();
     candidates.push_back(exe / "models" / "generale" / "respiro-en-dinamico.onnx");
     candidates.push_back(exe / "models" / "generale" / "respiro-en.onnx");
     candidates.push_back(exe / "respiro-en-dinamico.onnx");
@@ -69,17 +57,10 @@ std::string resolveModelPath(const std::string& configured) {
 }
 
 std::string resolveRuntimeDll() {
-#ifdef _WIN32
-    const auto exe = executableDirectory();
-    std::vector<std::filesystem::path> candidates = {
-        exe / "onnxruntime.dll",
-        exe / "runtime" / "onnxruntime.dll",
-    };
-    for (const auto& candidate : candidates) {
-        std::error_code ec;
-        if (std::filesystem::is_regular_file(candidate, ec)) return candidate.u8string();
+    const auto root=bc::runtimeDirectory();
+    for(const auto& path:{root/bc::libraryFileName("onnxruntime"),root/"runtime"/bc::libraryFileName("onnxruntime")}){
+        std::error_code error;if(std::filesystem::is_regular_file(path,error))return path.u8string();
     }
-#endif
     return {};
 }
 
@@ -283,7 +264,7 @@ bool buildFeatures(const std::vector<float>& mono, int sampleRate,
 }
 
 struct OrtHolder {
-    HMODULE module = nullptr;
+    bc::LibraryHandle module = nullptr;
     const OrtApi* api = nullptr;
     OrtEnv* env = nullptr;
     OrtSessionOptions* options = nullptr;
@@ -294,7 +275,7 @@ struct OrtHolder {
         if (session) api->ReleaseSession(session);
         if (options) api->ReleaseSessionOptions(options);
         if (env) api->ReleaseEnv(env);
-        if (module) FreeLibrary(module);
+        bc::closeSharedLibrary(module);
     }
 };
 
@@ -307,19 +288,18 @@ bool checkStatus(const OrtApi* api, OrtStatus* status, const std::string& operat
 }
 
 bool loadRuntime(OrtHolder& holder, std::string* error) {
-#ifdef _WIN32
     const std::string dll = resolveRuntimeDll();
     if (dll.empty()) {
-        if (error) *error = "onnxruntime.dll non trovata accanto al programma";
+        if (error) *error = "ONNX Runtime CPU non trovata accanto al programma";
         return false;
     }
-    holder.module = LoadLibraryW(std::filesystem::u8path(dll).wstring().c_str());
+    holder.module = bc::openSharedLibrary(std::filesystem::u8path(dll));
     if (!holder.module) {
-        if (error) *error = "onnxruntime.dll non caricabile";
+        if (error) *error = "ONNX Runtime CPU non caricabile";
         return false;
     }
     using GetApiBase = const OrtApiBase* (ORT_API_CALL*)();
-    auto getter = reinterpret_cast<GetApiBase>(GetProcAddress(holder.module, "OrtGetApiBase"));
+    auto getter = reinterpret_cast<GetApiBase>(bc::librarySymbol(holder.module, "OrtGetApiBase"));
     if (!getter) {
         if (error) *error = "OrtGetApiBase non trovata";
         return false;
@@ -330,11 +310,7 @@ bool loadRuntime(OrtHolder& holder, std::string* error) {
         return false;
     }
     return true;
-#else
-    (void)holder;
-    if (error) *error = "ONNX Runtime disponibile solo su Windows";
-    return false;
-#endif
+
 }
 
 bool createSession(OrtHolder& holder, const std::string& modelPath, std::string* error) {
@@ -345,8 +321,12 @@ bool createSession(OrtHolder& holder, const std::string& modelPath, std::string*
                      "creazione opzioni ONNX", error)) return false;
     api->SetIntraOpNumThreads(holder.options, 1);
     api->SetSessionGraphOptimizationLevel(holder.options, ORT_ENABLE_ALL);
-    const std::wstring wideModel = std::filesystem::u8path(modelPath).wstring();
-    if (!checkStatus(api, api->CreateSession(holder.env, wideModel.c_str(), holder.options,
+#ifdef _WIN32
+    const auto nativeModel = std::filesystem::u8path(modelPath).wstring();
+#else
+    const auto& nativeModel = modelPath;
+#endif
+    if (!checkStatus(api, api->CreateSession(holder.env, nativeModel.c_str(), holder.options,
                                              &holder.session),
                      "apertura modello Respiro-en", error)) return false;
     if (!checkStatus(api, api->GetAllocatorWithDefaultOptions(&holder.allocator),
@@ -366,7 +346,7 @@ bool respiroEnAvailable(const std::string& modelPath, std::string* resolvedPath,
     if (resolvedPath) *resolvedPath = resolved;
     const std::string dll = resolveRuntimeDll();
     if (dll.empty()) {
-        if (error) *error = "onnxruntime.dll non trovata";
+        if (error) *error = "ONNX Runtime CPU non trovato";
         return false;
     }
     return true;

@@ -32,7 +32,9 @@ function UI.action(name)
     elseif name=='Sito web' or name=='Email' then
         local target=name=='Email' and 'mailto:info@nicolalanci.com' or 'https://www.nicolalanci.com'
         if reaper.CF_ShellExecute then reaper.CF_ShellExecute(target)
-        else reaper.ExecProcess('cmd.exe /d /c start "" "'..target..'"',-2) end
+        elseif package.config:sub(1,1)=='\\' then reaper.ExecProcess('cmd.exe /d /c start "" "'..target..'"',-2)
+        elseif reaper.GetOS():match('OSX') then reaper.ExecProcess('open "'..target..'"',-2)
+        else reaper.ExecProcess('xdg-open "'..target..'"',-2) end
     elseif name=='Analizza' then X.begin('analyze',X.selected_items())
     elseif name=='Applica incluse' then X.begin('render',X.selected_items())
     elseif name=='Annulla lavoro' then X.cancel()

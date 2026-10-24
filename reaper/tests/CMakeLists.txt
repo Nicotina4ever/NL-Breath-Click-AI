@@ -9,10 +9,16 @@ if(NOT BC_REAPER_TEST_DEPS EQUAL 0)
     message(FATAL_ERROR "REAPER tests require NumPy, SoundFile and Lupa/Lua 5.4; no packages are installed automatically")
 endif()
 add_test(NAME bc_reaper_lua COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_lua.py")
-if(BC_BUILD_STUDIO)
+if(BC_BUILD_STUDIO_CLI)
     add_test(NAME bc_reaper_bridge COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_bridge.py")
     set_tests_properties(bc_reaper_bridge PROPERTIES
-        ENVIRONMENT "BC_TEST_BIN=${CMAKE_BINARY_DIR}/bin/$<CONFIG>;PYTHONDONTWRITEBYTECODE=1" TIMEOUT 120)
+        ENVIRONMENT "BC_TEST_BIN=$<TARGET_FILE_DIR:bc_studio_cli>;PYTHONDONTWRITEBYTECODE=1" TIMEOUT 120)
 endif()
 set_tests_properties(bc_reaper_lua PROPERTIES
     ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1" TIMEOUT 60)
+
+if(BC_BUILD_STUDIO_CLI AND WIN32)
+    add_test(NAME bc_reaper_portable_worker COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_bridge.py")
+    set_tests_properties(bc_reaper_portable_worker PROPERTIES
+        ENVIRONMENT "BC_TEST_BIN=$<TARGET_FILE_DIR:bc_studio_cli>;BC_PORTABLE_WORKER=1;PYTHONDONTWRITEBYTECODE=1" TIMEOUT 120)
+endif()

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param([string]$ReaperExecutable='',
       [string]$WorkRoot='', [string]$Script='', [switch]$KeepOpen, [int]$TimeoutSeconds=240,
-      [string]$TestProject='', [switch]$RunGuiInputTests,[string]$PackageDirectory='')
+      [string]$TestProject='', [switch]$RunGuiInputTests,[string]$PackageDirectory='',[switch]$CloseReaPackReports)
 $ErrorActionPreference='Stop'
 $repo=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 if(-not $WorkRoot) { $WorkRoot=Join-Path $repo ('build\reaper_sandbox\runs\run_'+[guid]::NewGuid().ToString('N')) }
@@ -116,7 +116,9 @@ if($TestProject) {
     $code+="BCS_TEST_PROJECT = $(ConvertTo-LuaLiteral $TestProject)`n"
 }
 $code+="assert(reaper.GetResourcePath():gsub('\\','/'):lower() == expected:lower(), 'Sandbox resource mismatch: refusing to run')`n"
-$code+="dofile($(ConvertTo-LuaLiteral $Script))`n"
+$codec=ConvertTo-LuaLiteral (Join-Path $PSScriptRoot '..\bc_json.lua')
+$code+="local ok,err=xpcall(function() dofile($(ConvertTo-LuaLiteral $Script)) end,debug.traceback)`n"
+$code+="if not ok then local J=dofile($codec); assert(J.write(BCS_TEST_ROOT..'/result.json',{status='failed',error=tostring(err)})); if not BCS_KEEP_OPEN then reaper.defer(function()reaper.Main_OnCommand(40004,0)end) end end`n"
 [IO.File]::WriteAllText($bootstrap,$code,[Text.UTF8Encoding]::new($false))
 $env:APPDATA=Join-Path $portable 'appdata'; $env:LOCALAPPDATA=Join-Path $portable 'localappdata'
 $env:CommonProgramFiles=Join-Path $portable 'empty_common'
@@ -156,10 +158,13 @@ while(-not(Test-Path -LiteralPath $report) -and -not $child.HasExited -and $cloc
     [BcsSandboxWindows]::EnumWindows({param($h,$l)
         $ownerId=[uint32]0; [void][BcsSandboxWindows]::GetWindowThreadProcessId($h,[ref]$ownerId)
         if($ownerId -eq $child.Id) {
+            $windowTitle=New-Object Text.StringBuilder 256
+            [void][BcsSandboxWindows]::GetWindowText($h,$windowTitle,256)
+            $script:ownedReaPackReport=$CloseReaPackReports -and $windowTitle.ToString() -eq 'Transaction report'
             [BcsSandboxWindows]::EnumChildWindows($h,{param($button,$unused)
                 $caption=New-Object Text.StringBuilder 256
                 [void][BcsSandboxWindows]::GetWindowText($button,$caption,256)
-                if($caption.ToString() -match 'Still Evaluating' -and [BcsSandboxWindows]::IsWindowEnabled($button)) {
+                if(($caption.ToString() -match 'Still Evaluating' -or ($script:ownedReaPackReport -and $caption.ToString() -match '^&?OK$')) -and [BcsSandboxWindows]::IsWindowEnabled($button)) {
                     [void][BcsSandboxWindows]::SendMessage($button,0xF5,[IntPtr]::Zero,[IntPtr]::Zero)
                 }; return $true
             },[IntPtr]::Zero) | Out-Null

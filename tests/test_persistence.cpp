@@ -11,7 +11,9 @@
 #include <sstream>
 #include <iostream>
 #include <chrono>
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 namespace {
 int fail(const char* message) { std::cerr << "FAIL: " << message << '\n'; return 1; }
@@ -33,10 +35,19 @@ int main() {
     const auto file = root / "state.json";
     std::string error;
     if (!bc::writeTextAtomic(file.u8string(), "previous", &error)) return fail("first save");
+    #ifdef _WIN32
     HANDLE lock = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (lock == INVALID_HANDLE_VALUE) return fail("failure injection lock");
     const bool wrote = bc::writeTextAtomic(file.u8string(), "replacement", &error);
     CloseHandle(lock);
+    #else
+    // POSIX permits replacing open files: exercise a real rename conflict instead.
+    const auto blocked=root/"blocked";
+    std::filesystem::create_directory(blocked);
+    if(!bc::writeTextAtomic((blocked/"previous").u8string(),"previous",&error))return fail("conflict fixture");
+    const bool wrote=bc::writeTextAtomic(blocked.u8string(),"replacement",&error);
+    if(read(blocked/"previous")!="previous")return fail("rename conflict lost previous content");
+    #endif
     if (wrote || error.empty() || read(file) != "previous") return fail("previous save lost on replacement failure");
     if (!bc::writeTextAtomic(file.u8string(), "replacement", &error) || read(file) != "replacement")
         return fail("atomic retry");
@@ -61,7 +72,7 @@ int main() {
     }
     if (bc::validJsonDocument(u8"{\"è\":1,\"\\u00e8\":2}")) return fail("Unicode duplicate key accepted");
 
-    const auto audio = root / L"voce_è.wav";
+    const auto audio = root / std::filesystem::u8path(u8"voce_è.wav");
     std::ofstream(audio) << "synthetic source bytes";
     bc::studio::SessionData session;
     session.sourcePath = audio.u8string();
@@ -74,7 +85,7 @@ int main() {
     session.detectorSettings->requirePauseForBreath = false;
     session.fade.inEnabled = true; session.fade.inSeconds = .123;
     session.fade.outEnabled = true; session.fade.outShape = bc::FadeShape::Linear;
-    const auto path = root / L"sessione_è.bcnstudio.json";
+    const auto path = root / std::filesystem::u8path(u8"sessione_è.bcnstudio.json");
     if (!bc::studio::saveSession(path.u8string(), session, &error)) return fail("session unicode save");
     if (!bc::writeTextAtomic(path.u8string(), escapedAccent(read(path)), &error)) return fail("escaped session fixture");
     bc::studio::SessionData loaded;
@@ -120,8 +131,8 @@ int main() {
     const auto wav = (root / "synthetic.wav").u8string();
     if (!bc::writeWav(wav, buffer, bc::WavFormat::Float32, &error)) return fail("synthetic WAV");
     const auto sourceBytes = read(std::filesystem::u8path(wav));
-    const auto longSource = (longDirectory / L"voce_è.wav").u8string();
-    const auto longOutput = (longDirectory / L"elaborato_è.wav").u8string();
+    const auto longSource = (longDirectory / std::filesystem::u8path(u8"voce_è.wav")).u8string();
+    const auto longOutput = (longDirectory / std::filesystem::u8path(u8"elaborato_è.wav")).u8string();
     bc::AudioBuffer longAudio;
     bc::AudioFileInfo longInfo;
     std::string longHash;
@@ -143,14 +154,25 @@ int main() {
         return fail("long audio session lost integrity hash/settings");
     // Failure to replace must preserve both the earlier output and source.
     const auto longOutputNative = bc::nativeFilePath(std::filesystem::u8path(longOutput));
+    #ifdef _WIN32
     lock = CreateFileW(longOutputNative.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
     if (lock == INVALID_HANDLE_VALUE) return fail("long WAV failure injection lock");
-    const auto previousOutput = read(longOutputNative);
+    const auto preservedOutput=longOutputNative;
+    #else
+    const auto preservedOutput=longOutputNative/"previous.wav";
+    const auto moved=longOutputNative.parent_path()/"saved_output.wav";
+    std::filesystem::rename(longOutputNative,moved);
+    std::filesystem::create_directory(longOutputNative);
+    std::filesystem::rename(moved,preservedOutput);
+    #endif
+    const auto previousOutput = read(preservedOutput);
     const bool replacedLong = bc::studio::writeWavWithMetadataAtomic(longSource, longOutput,
         buffer, bc::WavFormat::Pcm16, &error);
+    #ifdef _WIN32
     CloseHandle(lock);
+    #endif
     std::string hashAfter;
-    if (replacedLong || error.empty() || read(longOutputNative) != previousOutput ||
+    if (replacedLong || error.empty() || read(preservedOutput) != previousOutput ||
         !bc::studio::sha256File(longSource, hashAfter, &error) || hashAfter != longHash)
         return fail("long WAV failure damaged previous output/source");
     bc::studio::Settings settings;

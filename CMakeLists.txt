@@ -20,6 +20,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 enable_testing()
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+find_package(Threads REQUIRED)
 
 # ============================================================================
 #  Percorsi delle dipendenze
@@ -44,16 +47,23 @@ option(BC_REQUIRE_RELEASE_TESTS "Richiedi tutte le dipendenze dei test di releas
 #  REAPER usa script Lua e il bridge CLI, senza un'estensione nativa.
 # ---------------------------------------------------------------------------
 option(BC_BUILD_CLI       "Compila la CLI offline e le utilita' di test" ON)
-option(BC_BUILD_EDITOR    "Compila la GUI/editor condivisa"             ON)
-option(BC_BUILD_STUDIO    "Compila NL Breath Click Studio"                 ON)
+if(WIN32)
+    set(BC_GUI_DEFAULT ON)
+else()
+    set(BC_GUI_DEFAULT OFF)
+endif()
+option(BC_BUILD_EDITOR    "Compila la GUI/editor condivisa" ${BC_GUI_DEFAULT})
+option(BC_BUILD_STUDIO "Compila la GUI Windows" ${BC_GUI_DEFAULT})
+option(BC_BUILD_STUDIO_CLI "Compila il backend CLI indipendente" ON)
+option(BC_BUILD_ENGINE "Build the shared C++ engine even without applications" ON)
 option(BC_BUILD_TESTS     "Compila i test"                              ON)
 option(BC_BUILD_REAPER_TESTS "Verifica adapter REAPER con mock Lua e bridge audio" ON)
 
-if(BC_REQUIRE_RELEASE_TESTS AND (NOT BC_BUILD_CLI OR NOT BC_BUILD_EDITOR OR NOT BC_BUILD_STUDIO OR NOT BC_BUILD_TESTS))
+if(BC_REQUIRE_RELEASE_TESTS AND (NOT BC_BUILD_CLI OR NOT BC_BUILD_EDITOR OR NOT BC_BUILD_STUDIO OR NOT BC_BUILD_STUDIO_CLI OR NOT BC_BUILD_TESTS))
     message(FATAL_ERROR "Release validation requires CLI, editor, Studio and all tests")
 endif()
 
-if(NOT BC_BUILD_CLI AND NOT BC_BUILD_STUDIO)
+if(NOT BC_BUILD_CLI AND NOT BC_BUILD_STUDIO AND NOT BC_BUILD_STUDIO_CLI AND NOT BC_BUILD_ENGINE AND NOT BC_BUILD_EDITOR)
     message(FATAL_ERROR "Nessun componente selezionato: abilitare almeno BC_BUILD_CLI o BC_BUILD_STUDIO")
 endif()
 
@@ -68,7 +78,9 @@ add_library(kissfft STATIC
     "${THIRD_PARTY_DIR}/kissfft/kiss_fft.c"
     "${THIRD_PARTY_DIR}/kissfft/kiss_fftr.c")
 
-target_include_directories(kissfft PUBLIC "${THIRD_PARTY_DIR}/kissfft")
+target_include_directories(kissfft PUBLIC
+    "$<BUILD_INTERFACE:${THIRD_PARTY_DIR}/kissfft>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick/third_party/kissfft>")
 
 if(MSVC)
     # kissfft e' C: alcuni avvisi di conversione non sono azionabili qui.
@@ -80,7 +92,17 @@ endif()
 set_target_properties(kissfft PROPERTIES FOLDER "third_party")
 
 # ============================================================================
-add_subdirectory("${THIRD_PARTY_DIR}/lame" "${CMAKE_BINARY_DIR}/third_party/lame")
+if(WIN32)
+    add_subdirectory("${THIRD_PARTY_DIR}/lame" "${CMAKE_BINARY_DIR}/third_party/lame")
+else()
+    find_library(BC_LAME_LIBRARY NAMES mp3lame REQUIRED)
+    add_library(mp3lame SHARED IMPORTED GLOBAL)
+    set_target_properties(mp3lame PROPERTIES IMPORTED_LOCATION "${BC_LAME_LIBRARY}")
+    find_package(OpenSSL 3 REQUIRED COMPONENTS Crypto)
+endif()
+if(NOT WIN32 AND (BC_BUILD_EDITOR OR BC_BUILD_STUDIO))
+    message(FATAL_ERROR "The current GUI is Windows-only; headless Core/CLI are portable. Disable BC_BUILD_EDITOR and BC_BUILD_STUDIO.")
+endif()
 
 # ============================================================================
 # Compiler policy must precede our subdirectories: directory options set
@@ -93,7 +115,7 @@ else()
 endif()
 
 add_subdirectory(core)
-if(BC_BUILD_EDITOR OR BC_BUILD_STUDIO OR BC_BUILD_TESTS)
+if(BC_BUILD_ENGINE OR BC_BUILD_EDITOR OR BC_BUILD_STUDIO OR BC_BUILD_STUDIO_CLI OR BC_BUILD_TESTS)
     add_subdirectory(standalone/engine)
 endif()
 
@@ -105,7 +127,7 @@ if(BC_BUILD_EDITOR)
     add_subdirectory(editor)
 endif()
 
-if(BC_BUILD_STUDIO)
+if(BC_BUILD_STUDIO OR BC_BUILD_STUDIO_CLI)
     add_subdirectory(standalone)
 endif()
 
@@ -135,3 +157,28 @@ message(STATUS "  Accelerazione NPU : rimossa (non funzionante)")
 message(STATUS "  Inferenza         : DSP CPU; Respiro-en ONNX opzionale")
 message(STATUS "==========================================================")
 message(STATUS "")
+
+# A single C++ engine package for standalone, REAPER backends and NL Audio Suite.
+# Never install private generated coefficient headers or private SDK builds.
+if(TARGET bc_studio_engine AND NOT BC_PRIVATE_MODEL_DIR)
+    set_target_properties(bc_studio_engine PROPERTIES EXPORT_NAME BreathClickEngine)
+    set_target_properties(ai_breathclick_core PROPERTIES EXPORT_NAME BreathClickCore)
+    set_target_properties(kissfft PROPERTIES EXPORT_NAME BreathClickFFT)
+    install(TARGETS bc_studio_engine ai_breathclick_core kissfft EXPORT NLBreathClickTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(DIRECTORY core/include/core DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick
+        PATTERN "breath_model.h" EXCLUDE PATTERN "breath_model_net.h" EXCLUDE PATTERN "breath_model_net_narrow.h" EXCLUDE)
+    install(FILES standalone/studio_engine.h standalone/studio_project.h standalone/studio_session.h standalone/respiro_onnx.h
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick)
+    install(FILES "${THIRD_PARTY_DIR}/kissfft/kiss_fft.h" "${THIRD_PARTY_DIR}/kissfft/kiss_fftr.h"
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick/third_party/kissfft)
+    install(EXPORT NLBreathClickTargets NAMESPACE NL:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NLBreathClick)
+    configure_package_config_file(cmake/NLBreathClickConfig.cmake.in
+        "${CMAKE_BINARY_DIR}/NLBreathClickConfig.cmake" INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NLBreathClick)
+    write_basic_package_version_file("${CMAKE_BINARY_DIR}/NLBreathClickConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+    install(FILES "${CMAKE_BINARY_DIR}/NLBreathClickConfig.cmake" "${CMAKE_BINARY_DIR}/NLBreathClickConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/NLBreathClick)
+    install(FILES LICENSE THIRD_PARTY_NOTICES.md DESTINATION ${CMAKE_INSTALL_DATADIR}/nl_breathclick)
+    install(DIRECTORY LICENSES DESTINATION ${CMAKE_INSTALL_DATADIR}/nl_breathclick)
+endif()

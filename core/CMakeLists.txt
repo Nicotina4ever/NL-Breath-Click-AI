@@ -30,6 +30,7 @@ set(CORE_SOURCES
     src/edit/audio_document.cpp
     src/learning/personal_profile.cpp
     # utilita'
+    src/util/runtime_paths.cpp
     src/util/logger.cpp
     src/util/atomic_file.cpp
     src/util/json_validation.cpp
@@ -53,13 +54,14 @@ endif()
 
 target_include_directories(ai_breathclick_core
     PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+        "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick>"
     PRIVATE
         "${THIRD_PARTY_DIR}/dr_libs"
         "${THIRD_PARTY_DIR}/lame/include"
 )
 
-target_link_libraries(ai_breathclick_core PUBLIC kissfft)
+target_link_libraries(ai_breathclick_core PUBLIC kissfft Threads::Threads PRIVATE ${CMAKE_DL_LIBS})
 
 if(WIN32)
     target_link_libraries(ai_breathclick_core PUBLIC bcrypt)
@@ -84,5 +86,9 @@ set_target_properties(ai_breathclick_core PROPERTIES
 #  di aggancio rimane se in futuro servisse di nuovo.
 # ---------------------------------------------------------------------------
 function(bc_deploy_runtime_dependencies TARGET)
-    # Nessuna dipendenza esterna da distribuire.
+    if(NOT WIN32 AND BC_LAME_LIBRARY)
+        add_custom_command(TARGET ${TARGET} POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${BC_LAME_LIBRARY}"
+            "$<TARGET_FILE_DIR:${TARGET}>/${CMAKE_SHARED_LIBRARY_PREFIX}mp3lame${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    endif()
 endfunction()

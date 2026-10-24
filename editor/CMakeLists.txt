@@ -118,9 +118,9 @@ endif()
 get_property(BC_DIRECTORY_TESTS DIRECTORY PROPERTY TESTS)
 foreach(BC_TEST IN LISTS BC_DIRECTORY_TESTS)
     set_property(TEST ${BC_TEST} APPEND PROPERTY ENVIRONMENT
-        "BC_TEST_BIN=${CMAKE_BINARY_DIR}/bin/$<CONFIG>"
-        "BC_STUDIO_CLI=${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bc_studio_cli.exe"
-        "BC_STUDIO_GEN=${CMAKE_BINARY_DIR}/bin/$<CONFIG>/bc_cli.exe"
+        "BC_TEST_BIN=$<TARGET_FILE_DIR:bc_studio_cli>"
+        "BC_STUDIO_CLI=$<TARGET_FILE:bc_studio_cli>"
+        "BC_STUDIO_GEN=$<TARGET_FILE:bc_cli>"
         "PYTHONDONTWRITEBYTECODE=1")
     set_tests_properties(${BC_TEST} PROPERTIES FAIL_REGULAR_EXPRESSION "SKIP:;SKIPPED")
     if(BC_TEST MATCHES "^(editor_|bc_studio_(project_gui|workflow|gui_interaction|performance|detection_settings|bulk_events|portable_audio))")
