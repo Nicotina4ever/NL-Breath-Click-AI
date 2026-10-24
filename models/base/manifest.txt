@@ -1,0 +1,24 @@
+# Profilo di rilevamento BreathClick
+# Generato dal programma. Si puo' modificare a mano.
+
+nome = base
+descrizione = Modello di partenza (incorporato)
+
+# Tipo di materiale su cui e' pensato questo profilo:
+#   grezzo   registrazione senza trattamenti
+#   trattato file gia' equalizzato, compresso o pulito
+#   musica   brani musicali
+#   podcast  voce parlata con rumore di fondo
+#   altro    qualsiasi altra cosa
+materiale = grezzo
+
+# Fiati
+# fiati_modello: nome del modello addestrato (vuoto = rilevamento incorporato)
+fiati_modello =
+fiati_soglia = 0.02
+fiati_min_ms = 90
+
+# Click
+click_modello =
+click_soglia = 0.55
+click_ripara = si

@@ -1,0 +1,119 @@
+# ============================================================================
+#  BreathClick Studio — esclusioni Git/GitHub
+#
+#  Il repository pubblico contiene solo sorgenti e documentazione necessari.
+#  Audio, dataset, annotazioni, modelli non ridistribuibili, build, ZIP e
+#  output di lavoro restano fuori.
+# ============================================================================
+
+# --- Audio originale e materiale privato -----------------------------------
+*.wav
+*.wave
+*.flac
+*.mp3
+*.aiff
+*.aif
+*.m4a
+*.wma
+*.ogg
+materiale_flat/
+dataset/
+datasets/
+annotazioni*
+*.annotations.json
+AI_Fiati/
+
+# I soli WAV sintetici dei test REAPER congelati sono ammessi esplicitamente.
+
+
+# --- Modelli e pesi non ridistribuibili ------------------------------------
+*.onnx
+*.onnx.data
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+models/addestrato/pesi.json
+models/**/checkpoint*
+models/**/dataset*
+
+# --- Sessioni e piani generati dall'utente --------------------------------
+*.bcnstudio.json
+*.plan.json
+*.edit.json
+*.review.json
+
+# --- Build, dipendenze locali e pacchetti ---------------------------------
+build/
+build_*/
+dist/
+package/
+installer/out/
+VST_SDK/
+cmake-*/
+tools/cmake-*/
+third_party/
+.vs/
+out/
+bin/
+obj/
+
+# --- Binari e intermedi ----------------------------------------------------
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.res
+*.zip
+*.7z
+*.tar
+*.gz
+*.msi
+
+# --- Cache, log e file temporanei -----------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.tmp
+*.temp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- Output locale / prove -------------------------------------------------
+da_eliminare/
+*.breathclick.json
+_prova_*
+gui_smoke_result.json
+riordino_baseline/
+
+# --- Segreti / configurazioni locali --------------------------------------
+.env
+.env.*
+*.secret
+*.key
+*.pem
+
+# Private legacy weights generated locally by the training tools.
+/core/include/core/detect/breath_model.h
+/core/include/core/detect/breath_model_net.h
+/core/include/core/detect/breath_model_net_narrow.h
+# Third-party source is vendored; runtime binaries remain external.
+!/third_party/
+!/third_party/**/
+!/third_party/**/*.c
+!/third_party/**/*.h
+!/third_party/**/CMakeLists.txt
+!/third_party/**/COPYING
+!/third_party/**/LICENSE*
+!/third_party/**/.gitignore
+!/third_party/**/*.md
+!/third_party/**/*.def

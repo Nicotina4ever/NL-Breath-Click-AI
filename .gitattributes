@@ -1,0 +1,47 @@
+# ============================================================================
+#  .gitattributes — normalizzazione delle righe e gestione dei binari
+# ============================================================================
+
+# Git normalizza a LF nel repository e converte al checkout secondo la
+# piattaforma. Senza questo, un clone su Windows puo' ritrovarsi file misti.
+* text=auto
+
+# --- script e file di progetto: CRLF al checkout ------------------------------
+# PowerShell e cmd gestiscono entrambe le convenzioni, ma su Windows gli
+# strumenti si aspettano CRLF: forzarlo evita sorprese.
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+# --- sorgenti e documentazione: LF -------------------------------------------
+*.c     text eol=lf
+*.h     text eol=lf
+*.cpp   text eol=lf
+*.hpp   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.cmake text eol=lf
+
+# --- binari: nessuna conversione, nessun diff --------------------------------
+*.onnx  binary
+*.wav   binary
+*.png   binary
+*.ico   binary
+*.lib   binary
+*.dll   binary
+*.exe   binary
+
+# --- linguaggio per GitHub ----------------------------------------------------
+*.c     linguist-language=C
+*.h     linguist-language=C
+*.cpp   linguist-language=C++
+*.hpp   linguist-language=C++
+*.ps1   linguist-language=PowerShell
+
+# Preserve upstream dependency bytes so clones match DEPENDENCIES.lock.json.
+# Upstream whitespace is intentional and is not edited for local style.
+*.py text eol=lf
+third_party/** -text -whitespace

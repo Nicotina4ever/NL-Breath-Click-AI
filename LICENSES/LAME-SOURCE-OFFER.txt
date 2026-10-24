@@ -1,0 +1,10 @@
+LAME 3.100 - corresponding source
+
+The optional libmp3lame.dll is built from the source in third_party/lame
+under LGPL-2.0. The complete source used by this build, headers, export map
+and CMake build file are included with each standalone ZIP in sources/lame.
+They are also versioned in the BreathClick source repository. No system
+LAME installation is required. See LGPL-2.0.txt and THIRD_PARTY_NOTICES.md.
+
+Upstream: https://lame.sourceforge.io/
+Build: cmake -S sources/lame -B lame-build; cmake --build lame-build --config Release

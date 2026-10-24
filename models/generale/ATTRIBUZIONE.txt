@@ -1,0 +1,17 @@
+Respiro-en — attribuzione e licenza
+===================================
+
+Modello: Respiro-en (frame-wise breath detection).
+Autori: Dong Yang, Tomoki Koriyama, Yuki Saito.
+Paper: "Frame-Wise Breath Detection with Self-Training: An Exploration of
+Enhancing Breath Naturalness in Text-to-Speech", INTERSPEECH 2024.
+Sorgente: https://huggingface.co/ydqmkkx/respiro-en
+Licenza dichiarata dal modello: MIT.
+
+Il file incluso è la conversione ONNX dinamica (`respiro-en-dinamico.onnx` +
+`respiro-en-dinamico.onnx.data`). Hash SHA-256 e dimensioni sono in
+`manifest_respiro-en.json`.
+
+Il modello è usato solo per inferenza CPU offline. Non è stato riaddestrato.
+Nessuna garanzia di accuratezza su voci italiane: la valutazione è descritta
+nella guida BreathClick Studio.

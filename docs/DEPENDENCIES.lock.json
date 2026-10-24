@@ -1,0 +1,563 @@
+{
+  "schema": 1,
+  "purpose": "Pinned source and optional runtime inputs; verify before building or packaging.",
+  "versions": {
+    "lame": "3.100",
+    "dr_mp3": "0.7.4 (local header)",
+    "dr_flac": "0.13.4 (local header)",
+    "onnxruntime": "1.31.0.20261008.6.402979a",
+    "kissfft": "local source snapshot, identified by SHA-256"
+  },
+  "files": [
+    {
+      "path": "third_party/dr_libs/dr_flac.h",
+      "bytes": 523436,
+      "sha256": "96b3dfca87d02eb977d01278d19b10caea84b3fcd545f373495940e0587a3c9e"
+    },
+    {
+      "path": "third_party/dr_libs/dr_mp3.h",
+      "bytes": 199818,
+      "sha256": "91f264e8559cc8ccecbcfc38abc77fff66533f5e95f666a4ba48238e69e190a4"
+    },
+    {
+      "path": "third_party/kissfft/.gitignore",
+      "bytes": 805,
+      "sha256": "ec5c91af7769cd89aae7a8096e16f0856b145a36a93268a88d312fad659489e7"
+    },
+    {
+      "path": "third_party/kissfft/.travis.yml",
+      "bytes": 356,
+      "sha256": "bbe54b4c5d88726628de1bb5242020a82180233ae974eac59b27c719176fe2bf"
+    },
+    {
+      "path": "third_party/kissfft/_kiss_fft_guts.h",
+      "bytes": 4763,
+      "sha256": "dd1731891d0fff0e297198847de39216c5c8b9677ea4fe53160d1f6c74218d40"
+    },
+    {
+      "path": "third_party/kissfft/CHANGELOG",
+      "bytes": 5070,
+      "sha256": "103f9093677380c067e0265db63432ce1bee869018118212fcb8fd25cd6b2dfd"
+    },
+    {
+      "path": "third_party/kissfft/cmake/JoinPaths.cmake",
+      "bytes": 817,
+      "sha256": "794b0d8fa62a3b798c7df12d50114580d1a47a234bfb6b4d83092eb646a6ecc4"
+    },
+    {
+      "path": "third_party/kissfft/CMakeLists.txt",
+      "bytes": 11487,
+      "sha256": "50814d797d64a4262a485f26c527b9e54003118eea96af2618310ff038277b64"
+    },
+    {
+      "path": "third_party/kissfft/COPYING",
+      "bytes": 246,
+      "sha256": "a2840585f8411be8e6826a31ef15ae65c950bd74a2437a73b013398a934ad0c6"
+    },
+    {
+      "path": "third_party/kissfft/kfc.c",
+      "bytes": 2472,
+      "sha256": "979e5a4257bb8e7d08092db10ae252f50a00276545ed70a81330015cd55eacf2"
+    },
+    {
+      "path": "third_party/kissfft/kfc.h",
+      "bytes": 1539,
+      "sha256": "4edff1f6014d0043d8ea2e990bac0e2ebc6b7457f29297fa22ba04d579571567"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fft.c",
+      "bytes": 11786,
+      "sha256": "3e8af99313c7e94f952ac12db46d3d5c5dd4a9bf93e0c32d43efa5fe39724051"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fft.h",
+      "bytes": 4330,
+      "sha256": "9d6c7ddf520932c0aad669c86c064a24e571e594681be9f1491c14c9c9c75693"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fft_log.h",
+      "bytes": 970,
+      "sha256": "48b089fccb815b535dcbee88bbcabac702b5f29408563d2cc1d8a311be089afc"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftnd.c",
+      "bytes": 5999,
+      "sha256": "fdbdd7db054852093cd74a179cac569a523757bb1b7ba9ec3525995512f15b96"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftnd.h",
+      "bytes": 641,
+      "sha256": "e5a439e66c51b62c58406a7d4eb0a91b565deb14c60f1ce58b37d65b0c0c621e"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftndr.c",
+      "bytes": 3651,
+      "sha256": "f4395cdbc88e9f25bc8d4aac1a0bc34606ad367ae01d4b903fb364bee77c430c"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftndr.h",
+      "bytes": 1226,
+      "sha256": "c2dbaa98fa5d80b3bded47ba2a14f8e35842d4ae7c60024d95a8ebc5c6002f51"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftr.c",
+      "bytes": 4799,
+      "sha256": "128b651120725e8d55f6b9edf5d44b06dc022b260894eac078c6ff8aa7159561"
+    },
+    {
+      "path": "third_party/kissfft/kiss_fftr.h",
+      "bytes": 1144,
+      "sha256": "a0f72c1bddc3126d7a51ad80e965b58f6af77e4419aa882a0b11951e783632a8"
+    },
+    {
+      "path": "third_party/kissfft/kissfft-config.cmake.in",
+      "bytes": 3220,
+      "sha256": "2964268dde91282672ea064f4e656b9c638af34154f2b23378c7360d1185d415"
+    },
+    {
+      "path": "third_party/kissfft/kissfft.hh",
+      "bytes": 13963,
+      "sha256": "0a31467599b981d784f53a944c19e6991aa96eee703ab424d648e436b2718a8d"
+    },
+    {
+      "path": "third_party/kissfft/kissfft.pc.in",
+      "bytes": 370,
+      "sha256": "b49143cc4ba3d1d584d3d8e4e5a37b10e2721299851b36cdfd9abd81a8225a95"
+    },
+    {
+      "path": "third_party/kissfft/kissfft_i32.hh",
+      "bytes": 10163,
+      "sha256": "64e6be185afc907fef7ae733079e8f188d88109a92b5adca0a9ed5899b35f7e9"
+    },
+    {
+      "path": "third_party/kissfft/LICENSES/BSD-3-Clause",
+      "bytes": 1830,
+      "sha256": "4d6bcab46f27d6d0c878e8305d4bdcfe040d52bf6656b9771f04c9fb9902c0ed"
+    },
+    {
+      "path": "third_party/kissfft/LICENSES/Unlicense",
+      "bytes": 1521,
+      "sha256": "c543dab3c100d8741a83b02f397746b1e10fc0046f30b942f308191a68e99407"
+    },
+    {
+      "path": "third_party/kissfft/Makefile",
+      "bytes": 8637,
+      "sha256": "4393ee810928f9e345c786043feba37abf34994edb059a796293af4a1647f021"
+    },
+    {
+      "path": "third_party/kissfft/README.md",
+      "bytes": 9291,
+      "sha256": "d32f90b671f0b1b290388c84d2db25a7cc7d457275a54e0483feeb92c8472add"
+    },
+    {
+      "path": "third_party/kissfft/README.simd",
+      "bytes": 2419,
+      "sha256": "3d353443bf57108b11cc05fba84750a5306e94126d0f983fc9e9d0f8bf1b2087"
+    },
+    {
+      "path": "third_party/kissfft/TIPS",
+      "bytes": 2126,
+      "sha256": "dd49be97e5ea42496874fd23857e2d9d7ac2101ce11cfb4f72c7cd2ede0aa615"
+    },
+    {
+      "path": "third_party/kissfft/tools/CMakeLists.txt",
+      "bytes": 1120,
+      "sha256": "21a7e62d33261a65987ddce011425ba1fe93cf0de82c9f4d46e9ff351c572461"
+    },
+    {
+      "path": "third_party/kissfft/tools/fftutil.c",
+      "bytes": 5225,
+      "sha256": "6f70c40e77cfbe8a3e68afb60fa9bc8516976e6f01ae86a2d77a70cb04af5a2a"
+    },
+    {
+      "path": "third_party/kissfft/tools/kiss_fastfir.c",
+      "bytes": 12480,
+      "sha256": "70299344309e050bd82c017f4cdd60c7c1aebde9ed7e0dbf45e14d9f6f7d33f0"
+    },
+    {
+      "path": "third_party/kissfft/tools/Makefile",
+      "bytes": 2491,
+      "sha256": "75cf326dd5d52d73008475948664d59374bd91ca379c20b2425b2413dc94fbf4"
+    },
+    {
+      "path": "third_party/kissfft/tools/psdpng.c",
+      "bytes": 6010,
+      "sha256": "99e809572d0ee11857101d2e922b5d1596e7c62dc4ed94c1d871336326e5cbb0"
+    },
+    {
+      "path": "third_party/lame/CMakeLists.txt",
+      "bytes": 2157,
+      "sha256": "33717e97f062f3cb229644129122798bd7a746f0794980e3aec5a761efd337e5"
+    },
+    {
+      "path": "third_party/lame/config.h",
+      "bytes": 2783,
+      "sha256": "36d1dc7996673be83a5ba8bda4c675faa17f98fcecdd387338a7b9724388b262"
+    },
+    {
+      "path": "third_party/lame/configMS.h",
+      "bytes": 2769,
+      "sha256": "048ae456f89f85b700df8eb86d35bc5f42de33e77bf03f831734d73393bcf1b6"
+    },
+    {
+      "path": "third_party/lame/COPYING",
+      "bytes": 25284,
+      "sha256": "bfe4a52dc4645385f356a8e83cc54216a293e3b6f1cb4f79f5fc0277abf937fd"
+    },
+    {
+      "path": "third_party/lame/include/lame.def",
+      "bytes": 5866,
+      "sha256": "c1bc0933c933bdd07937f254cb5f20e5e8f1a20a48920874fd0006ec5feba40a"
+    },
+    {
+      "path": "third_party/lame/include/lame.h",
+      "bytes": 50053,
+      "sha256": "b30e4d3f5bb247bad2781758d90604f29cc44dd5bd79fee130aaef7c7d25bcf0"
+    },
+    {
+      "path": "third_party/lame/include/libmp3lame.sym",
+      "bytes": 4965,
+      "sha256": "eed7f2b0c82a11ef4eee47b34f42b0c029431d6bf930e2822e75c10abac1db5f"
+    },
+    {
+      "path": "third_party/lame/include/Makefile.am",
+      "bytes": 169,
+      "sha256": "ad9a33e74573f5969085b94f5a6a58a057c5a4854cad15311e277908f0a639f3"
+    },
+    {
+      "path": "third_party/lame/include/Makefile.in",
+      "bytes": 17370,
+      "sha256": "e124700547476af946f8235a7e9cc0e17bb10cf54d084d1174e122691dedce65"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/bitstream.c",
+      "bytes": 36111,
+      "sha256": "567477da1d6f1ca99c5f1906e1e106b1952c5559f9215441a32240a55e1d952e"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/bitstream.h",
+      "bytes": 1563,
+      "sha256": "5c6bfb039c70ce1696782a53dae3255f462c49102d639c37c3a774c5d2c0d08a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/depcomp",
+      "bytes": 23567,
+      "sha256": "534cc0f4c4bfc8f2c5a674741e46abfcc033776a011c3d5bc48cad7d0394ef91"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/encoder.c",
+      "bytes": 18539,
+      "sha256": "dc001ef56ad792b38902db63d8fa20966efc63392e9a47a6916d9bd7919a93c3"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/encoder.h",
+      "bytes": 4096,
+      "sha256": "e959801ad6fab370ad48245d91fd3fc4385d12ab7cfc743d4ea760a711af7517"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/fft.c",
+      "bytes": 9941,
+      "sha256": "e1f73f1db229d37cd5c9f2dfa0bebcbf730b73d57559802e45eada989a80176e"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/fft.h",
+      "bytes": 1227,
+      "sha256": "cadfc3c5d7ecb556d5f5829e28a7b0830a35478afb86ce0a01d83f3cdf977c4e"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/gain_analysis.c",
+      "bytes": 20282,
+      "sha256": "8b3fe4970fe6a19906af1573c6fdd7a51eab0599404204857d16fa55f96a83fa"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/gain_analysis.h",
+      "bytes": 4202,
+      "sha256": "e71703d716f6f99d6900ab4d1feaf91e9fe25135dd3ced66864cece7c82426be"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/choose_table.nas",
+      "bytes": 13479,
+      "sha256": "e973dabadc7b58c4bf502e1b5b3ecdb91f86a37e041ce4e985f857426a090221"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/cpu_feat.nas",
+      "bytes": 1871,
+      "sha256": "4241e8daf2f36c42bcf93c2f2ebe2b5e82442c506dd66aff909b1d3a78327a4d"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/fft.nas",
+      "bytes": 6763,
+      "sha256": "fbfd22731f51cd7a5fc97244a8956d87cca6e3a047284ae54d74f8dace6dc58a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/fft3dn.nas",
+      "bytes": 9605,
+      "sha256": "c3632d54fc373055f1c8a78f81d8d061853692250a21c041a4e9e2cc43328562"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/fftfpu.nas",
+      "bytes": 10188,
+      "sha256": "d7dd1a2253f1af2db8c866ec674e3f3cb94c9a6f8c5b729f68e1eb451038fc8a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/fftsse.nas",
+      "bytes": 13758,
+      "sha256": "7bd6d53a453ffa0e51cf9a3b4863ab182c8eda5a1ba48c8dcea5c72a26489684"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/ffttbl.nas",
+      "bytes": 1859,
+      "sha256": "5ec4d552351881974d78d43b6f49502170ac77f112286c33837111069475ac26"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/Makefile.am",
+      "bytes": 1700,
+      "sha256": "6fe1f6f6a8ad309daf7d35bc0c7a92aacfea01db46c0b5f5bb3942ca7065614b"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/Makefile.in",
+      "bytes": 18071,
+      "sha256": "26a7b6566b7b973b6a3407c62733aa727a9a9399c7698153a2a4e7e6ea3ecd05"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/nasm.h",
+      "bytes": 7271,
+      "sha256": "00efd8bb5d3873d0e73c78dcb4455ba04c0b5926f54b4cb277409d4f0094954d"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/i386/scalar.nas",
+      "bytes": 25989,
+      "sha256": "2756db7f680f9127eb1b33082e83a506062ec373fd63d4950ff2e76650fa354a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/id3tag.c",
+      "bytes": 53779,
+      "sha256": "a8d9f35d8edf7d78bc14bddfc8c67ecbb8c9fae2c70db48c1700823070220cd5"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/id3tag.h",
+      "bytes": 1804,
+      "sha256": "b78d8ebd1880fb1acd7ec6ed452e0b67555bbb6bff5a4312f5156bd1392ee6ca"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/l3side.h",
+      "bytes": 2414,
+      "sha256": "e4e60ea6b93b7cb7b90cf35ef43bfcd9c7570ff91d79c8a305e95739556d988a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/lame-analysis.h",
+      "bytes": 3077,
+      "sha256": "3953c64ad8997796919f7c5330a0a4b229c4644ede9b6448c2d1a8d61b6da359"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/lame.c",
+      "bytes": 84713,
+      "sha256": "561882821f4b9575e2d171d2e8f797c50e4ea2eb2f9c7a58b5f02353ba7f36c0"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/lame.rc",
+      "bytes": 1224,
+      "sha256": "bb4cb2861ac220dca68dc23dcadcc72d2a017860bf73cbde141eda5c965e06ce"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/lame_global_flags.h",
+      "bytes": 8165,
+      "sha256": "94b1c899765d08e4502e4285c0fbaa7ebc61d252c2d0ceb99f21306364bdce74"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/lameerror.h",
+      "bytes": 637,
+      "sha256": "9ebb9e5f9dbfa551a189552b3b7b115e309536b0503cbcc6e6e071b077a5a256"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/logoe.ico",
+      "bytes": 51262,
+      "sha256": "e2be6015e9a3ff59ed295d044bfef052a024d3fe567c5f880c180fdd51a87242"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/machine.h",
+      "bytes": 4520,
+      "sha256": "93a4ac1d7049dcdc9e9207b8b7abb7e4fc6f637f23ec97ef8c842f610b1a8fbe"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/Makefile.am",
+      "bytes": 1949,
+      "sha256": "537dd7da81d35026a2fc6eab92485dcfab8aac48021a1a5e189558e2721e73c2"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/Makefile.in",
+      "bytes": 29024,
+      "sha256": "d0e73c4188f1c7af4a4af81ec78b730e0639f132967ba25b0f07c9fefc165bbf"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/mpglib_interface.c",
+      "bytes": 13949,
+      "sha256": "26def6f73e3ba902ffe5ef05cab78a0afc9039700386fbd466dd160424dbc4cd"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/newmdct.c",
+      "bytes": 37124,
+      "sha256": "4c5a3a62f83861edfac3a0d0b4b8025277376e8e93079baad0fcf8f5d3e182ab"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/newmdct.h",
+      "bytes": 993,
+      "sha256": "9aa3a331f57a68ab59d83857dbb85fcf279d39177c6aae311b7442499994ae23"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/presets.c",
+      "bytes": 15592,
+      "sha256": "feb47d97b3014e201d52fa75930b02e18c18568caf6b2f9d9bb02a42a0313ec3"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/psymodel.c",
+      "bytes": 70977,
+      "sha256": "de8e3787d403d07d8dfdf40dc1141bee6ff92c9ea9a55506a5bd49a03d15d377"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/psymodel.h",
+      "bytes": 2024,
+      "sha256": "1785c6e8798b3b1ce19d12af36f27f4beee5c33de5f6675074d6e2b911b97bbb"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/quantize.c",
+      "bytes": 65770,
+      "sha256": "e56a882246e8ccd2c9cd23df189529001b7143348f1e1e43f1add40bd29ad5df"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/quantize.h",
+      "bytes": 1556,
+      "sha256": "adc9ff50e49c948d7afcb27eb51a6ad8fdce1a764f0149136ac5f04b5899a653"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/quantize_pvt.c",
+      "bytes": 34107,
+      "sha256": "8629525b480e3ac172294fa00a39032db525228b7aa15eb5d05cd3ef4bf5595a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/quantize_pvt.h",
+      "bytes": 4263,
+      "sha256": "e01a2362f8a13009025b72ee20114a166a06bfc18f614cabf0f3692ae84443cd"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/reservoir.c",
+      "bytes": 10263,
+      "sha256": "97f2e870bd20f943fbb30ea43bfe4967247f233fc91292a38597a1c6afed2848"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/reservoir.h",
+      "bytes": 1221,
+      "sha256": "410a2486d4756544ed2b10c8f432150adc166a576466dccf620927bb336fe2bf"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/set_get.c",
+      "bytes": 54195,
+      "sha256": "29b6f5b13e9317b1c116f746d71d400313af7642639edda432e5734713bc3af3"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/set_get.h",
+      "bytes": 2587,
+      "sha256": "fe2af5e1b3c18e44e8e91fd1c7fdc337770fecbf62dbc93cfd98af44b1f3cdf2"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/tables.c",
+      "bytes": 21364,
+      "sha256": "023461e4dd0f2efc4fa7afe85a03e8ed7ee768f47d3b40f4d06d3950547d50fb"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/tables.h",
+      "bytes": 2473,
+      "sha256": "826f3a189d7b20f0bcd91692f25c9447a3986fecc5e8a9c21487e4cc0862689d"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/takehiro.c",
+      "bytes": 38192,
+      "sha256": "983b3202804a870e064cb6c39d3311a3198ab4254ce89b597a412523823c1e28"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/util.c",
+      "bytes": 25834,
+      "sha256": "c9af05c4b5b834a815d37d0da4758dedab4f61b43bbf9bef0efa67f35bf97a55"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/util.h",
+      "bytes": 21928,
+      "sha256": "0497e5bc89ee1d93bd537e703cd2db14b7b0e6d934946afa4a798203fb669f6a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vbrquantize.c",
+      "bytes": 46724,
+      "sha256": "83a61036c20df8b71db2071ec5fa81dee4704b24eeffcb6da465334004bb2e54"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vbrquantize.h",
+      "bytes": 1072,
+      "sha256": "28f1095266c721c2870a2af8f884e815ff984557d49a47ec62854dbce9b3f24f"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/VbrTag.c",
+      "bytes": 31615,
+      "sha256": "bec89dfb83a81f882b3338b5a33a65840c6d7738d70de45ca000cd8e7ff370df"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/VbrTag.h",
+      "bytes": 2929,
+      "sha256": "69f6de79f3e689ab794bcd04d23b3eda202311b690bf1b02ff485520d351b7e2"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vector/lame_intrin.h",
+      "bytes": 1013,
+      "sha256": "2bb672d383f21365f3997652f86463fa28e02ed9490b7431d214bb7c1787634f"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vector/Makefile.am",
+      "bytes": 1026,
+      "sha256": "69167f0f3069b532f7c478da909e621d941013bd4f897dc23caccd884fc0b87a"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vector/Makefile.in",
+      "bytes": 19726,
+      "sha256": "4fc25cac3a0c1c6674242da7303cb3e3e773070597151459a62f71944a8161b4"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/vector/xmm_quantize_sub.c",
+      "bytes": 8461,
+      "sha256": "cd7f3ce8cb5fa3de770dda577f409826716c62a323fb15be5588e4a4f67021d3"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/version.c",
+      "bytes": 6882,
+      "sha256": "d6effa84baf53ce3a9fe9e4729ee7cf827180a12ecb363105ded319c84b1ca02"
+    },
+    {
+      "path": "third_party/lame/libmp3lame/version.h",
+      "bytes": 2306,
+      "sha256": "6b59fde33ee149cd0b8ea6946b0a92dabf60ef9d77e26f65565a323ba3698b54"
+    },
+    {
+      "path": "third_party/lame/mp3lame.def",
+      "bytes": 5764,
+      "sha256": "0e471d4309e1ce64420d76fa67b3fb863b714f941e7fa5d43b71fb803e5c9e67"
+    },
+    {
+      "path": "third_party/onnxruntime/include/onnxruntime_c_api.h",
+      "bytes": 206358,
+      "sha256": "7e47eb78563da119f740dc0ddfda96800e779e0bcbd169a9a49e9c10746c4cd5"
+    },
+    {
+      "path": "third_party/onnxruntime/onnxruntime.dll",
+      "bytes": 19288888,
+      "sha256": "7f6af4d294cf33d84dd66211d2d7a385e45108ac34716f1717dfbbd40e932952"
+    },
+    {
+      "path": "models/generale/respiro-en-dinamico.onnx",
+      "bytes": 1433857,
+      "sha256": "01209e6d6d105ef8ed379ed42cfa76aeaa31e19bcc30087470fc5515beb0a1b1"
+    },
+    {
+      "path": "models/generale/respiro-en-dinamico.onnx.data",
+      "bytes": 11666432,
+      "sha256": "8e01a8f836b4a3b4f7e0856d9b43e287511821b4cafe7f76bf83521be36ecd27"
+    }
+  ]
+}

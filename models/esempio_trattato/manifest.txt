@@ -1,0 +1,22 @@
+# Profilo di rilevamento BreathClick
+#
+# ESEMPIO di secondo profilo: materiale gia' trattato.
+#
+# Su un file gia' equalizzato o compresso il livello e' diverso e i fiati
+# possono essere stati attenuati in parte. Con le soglie del profilo base il
+# rilevatore tende a segnalare troppo; qui la soglia dei click e' piu' alta
+# e i fiati si accettano solo se piu' lunghi.
+#
+# Copia questa cartella e rinominala per creare un profilo tuo.
+
+nome = esempio_trattato
+descrizione = Esempio: file gia' trattati (equalizzati o compressi)
+materiale = trattato
+
+fiati_modello =
+fiati_soglia = 0.04
+fiati_min_ms = 120
+
+click_modello =
+click_soglia = 0.70
+click_ripara = si

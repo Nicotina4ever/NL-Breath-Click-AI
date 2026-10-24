@@ -1,0 +1,18 @@
+# Profilo di rilevamento BreathClick
+#
+# Modello ADDESTRATO sulle annotazioni corrette a orecchio.
+# I pesi stanno in pesi.json, accanto a questo file, e si caricano a runtime:
+# per cambiarli non serve ricompilare.
+
+nome = addestrato
+descrizione = Modello addestrato sulle annotazioni dell'utente
+materiale = grezzo
+
+fiati_modello =
+fiati_pesi = pesi.json
+fiati_soglia = 0.02
+fiati_min_ms = 90
+
+click_modello =
+click_soglia = 0.55
+click_ripara = si

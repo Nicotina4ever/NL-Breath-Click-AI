@@ -1,0 +1,5 @@
+// SPDX-License-Identifier: MPL-2.0
+#pragma once
+#define BC_STUDIO_VERSION "@BC_STUDIO_VERSION@"
+#define BC_STUDIO_VERSION_W L"@BC_STUDIO_VERSION@"
+#define BC_FILE_VERSION 1,0,0,2

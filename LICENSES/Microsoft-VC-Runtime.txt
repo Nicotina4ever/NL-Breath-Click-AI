@@ -1,0 +1,37 @@
+Microsoft Visual C++ Redistributable — notice and redistribution conditions
+
+The following files are Microsoft Visual C++ Redistributable components,
+included unmodified so that BreathClick Studio can run on Windows without a
+separate redistributable installation:
+
+  msvcp140.dll
+  msvcp140_1.dll
+  msvcp140_2.dll
+  msvcp140_atomic_wait.dll
+  msvcp140_codecvt_ids.dll
+  vcruntime140.dll
+  vcruntime140_1.dll
+  vcruntime140_threads.dll
+  vccorlib140.dll
+  concrt140.dll
+
+These components are not part of BreathClick Studio and are not licensed
+under the BreathClick terms. They are Microsoft redistributable files and
+remain subject to the Microsoft Visual Studio license terms.
+
+Redistribution conditions, in summary:
+- the files must be redistributed unmodified and only as part of this
+  application's installation/runtime;
+- the application must be built with a licensed Microsoft Visual Studio /
+  MSVC toolchain, and the Microsoft license terms must be accepted;
+- Microsoft's copyright, trademark, and other proprietary notices must not
+  be removed;
+- the files must not be used to create a competing development product;
+- no additional rights to Microsoft technology are granted by this notice.
+
+Official references:
+- https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist
+- https://visualstudio.microsoft.com/license-terms/
+
+Where the Microsoft license terms differ from this summary, the Microsoft
+terms prevail. This notice does not replace or amend them.

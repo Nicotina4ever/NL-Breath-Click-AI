@@ -1,0 +1,14 @@
+dr_libs / dr_mp3 / dr_flac
+Copyright 2023 David Reid
+
+These single-header libraries are dual-licensed: public domain (Unlicense)
+or MIT No Attribution (MIT-0), at your option. BreathClick uses them under
+the public-domain/MIT-0 option.
+
+The full license statements are retained verbatim in the vendored headers:
+  third_party/dr_libs/dr_mp3.h
+  third_party/dr_libs/dr_flac.h
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE.
