@@ -50,7 +50,9 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-Sono obbligatori **33 test**: 31 Core/Studio e due adapter/bridge REAPER.
+Sul tag RC2 sono obbligatori **33 test**. Il main successivo ne registra
+**35 su Windows completo**, includendo contratti di piattaforma e worker
+portabile; il conteggio headless dipende dalla piattaforma.
 Il vecchio mock degli envelope P1 e' rimosso insieme all'interfaccia superata;
 l'integrazione diretta ha il proprio collaudo REAPER reale.
 La GUI richiede un desktop Windows interattivo accessibile. Un errore del
@@ -82,7 +84,8 @@ powershell -File scripts/verify_release.ps1 `
 
 Include runtime VC++, ONNX, modello generale, guide, licenze e sorgenti LAME.
 Il nuovo ZIP completo sostituisce quello corrente senza `history/`; lo stage
-riuscito viene eliminato. In `dist/` rimangono una candidate e il suo SHA.
+riuscito viene eliminato. La distribuzione corrente conserva i due ZIP
+indipendenti standalone/REAPER e i relativi manifest/checksum.
 La verifica controlla hash, dipendenze PE, GUI/audio e codec opzionale in
 estrazione isolata. Non equivale a una VM Windows pulita.
 

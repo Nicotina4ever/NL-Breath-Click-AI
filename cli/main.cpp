@@ -26,6 +26,7 @@
 #include "core/detect/segment_features.h"
 #include "core/dsp/silence_gate.h"
 #include "core/model/model_profile.h"
+#include "core/util/runtime_paths.h"
 #include "core/model/regions_json.h"
 #include "core/dsp/breath_detector.h"
 #include <fstream>
@@ -340,22 +341,7 @@ bool parseDeviceOption(const Options& options, DeviceRequest& request) {
 
 // Cartella dei profili accanto all'eseguibile.
 std::string cliModelsRoot() {
-    wchar_t path[MAX_PATH] = {};
-    const DWORD length = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (length == 0 || length >= MAX_PATH) return {};
-
-    std::wstring full(path, length);
-    const size_t slash = full.find_last_of(L"\\/");
-    if (slash == std::wstring::npos) return {};
-    full = full.substr(0, slash) + L"\\models";
-
-    const int needed = WideCharToMultiByte(CP_UTF8, 0, full.c_str(), -1,
-                                           nullptr, 0, nullptr, nullptr);
-    if (needed <= 1) return {};
-    std::string risultato(static_cast<size_t>(needed - 1), '\0');
-    WideCharToMultiByte(CP_UTF8, 0, full.c_str(), -1, risultato.data(), needed,
-                        nullptr, nullptr);
-    return risultato;
+    return (bc::executableDirectory() / "models").u8string();
 }
 
 // Applica il profilo scelto con --profile.

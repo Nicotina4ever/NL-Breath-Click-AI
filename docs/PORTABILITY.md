@@ -18,6 +18,10 @@ Nessuna dipendenza Win32 nel loader portabile: dlopen, percorso eseguibile
 nativo e percorsi UTF-8. ONNX Runtime puo' essere caricato come .so/.dylib;
 la sua inferenza richiede un runtime nativo compatibile e il modello generale.
 Una build DSP senza runtime AI non costituisce un test di inferenza AI POSIX.
+La CI prepara esplicitamente modello pubblico e runtime nativo 1.31.0 con
+scripts/prepare_ci_runtime.py: ZIP della release e wheel ufficiali PyPI con
+SHA-256 fissati. Il test pipeline richiede inferenza AI e Fusion reale;
+assenza di questi artefatti fallisce il test, senza salti o fallback DSP.
 
 CI: .github/workflows/portable.yml esegue build/test headless e consumer SDK
 su Linux, macOS e Windows. Non esegue GUI Win32 o una DAW su quei runner.
