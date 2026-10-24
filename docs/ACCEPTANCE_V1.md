@@ -1,4 +1,4 @@
-# Criteri per BreathClick Studio 1.0
+# Criteri per NL Breath Click Studio 1.0
 
 La versione corrente resta una candidate. Verifiche attuali e collaudo umano
 in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
@@ -42,7 +42,7 @@ in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
     -File scripts\package_studio.ps1
   powershell -NoProfile -ExecutionPolicy Bypass `
     -File scripts\verify_release.ps1 `
-    -ZipPath dist\BreathClickStudio_1.0.0-rc.2.zip `
+    -ZipPath dist\NL_Breath_Click_Studio_1.0.0-rc.2.zip `
     -PythonExecutable "<python.exe>" -RunGuiTests
   ```
 - Stato: **PASS RC** per manifest, dipendenze PE, GUI con/senza LAME, CLI e

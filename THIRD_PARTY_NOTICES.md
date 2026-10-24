@@ -1,4 +1,4 @@
-# Licenze e attribuzioni - BreathClick
+# Licenze e attribuzioni - NL Breath Click Studio
 
 Il codice BreathClick e' offerto sotto la Mozilla Public License 2.0 (MPL-2.0) in LICENSE. Componenti di terze parti, runtime e
 modelli conservano le loro licenze, elencate sotto e in LICENSES/.

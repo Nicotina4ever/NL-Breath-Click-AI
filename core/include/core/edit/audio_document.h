@@ -51,7 +51,7 @@ struct EditRegion {
     // Distingue i rilevamenti automatici dalle modifiche dell'utente.
     bool fromDetection = false;
 
-    // Decisioni editoriali BreathClick Studio. `approved` e' separato dalla
+    // Decisioni editoriali NL Breath Click Studio. `approved` e' separato dalla
     // classificazione: un respiro vero puo' non essere approvato.
     bool approved = false;
     int editMode = 0;              // 0 attenuate, 1 cut, 2 halve

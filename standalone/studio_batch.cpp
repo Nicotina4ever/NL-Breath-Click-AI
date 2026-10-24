@@ -279,7 +279,7 @@ void runBatchWindow(HWND parent, const std::string& inputDirectory,
     RECT owner = {};
     if (parent) GetWindowRect(parent, &owner);
     HWND window = CreateWindowExW(WS_EX_DLGMODALFRAME, kClass,
-                                  L"BreathClick Studio - Batch",
+                                  L"NL Breath Click Studio - Batch",
                                   WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME,
                                   parent ? owner.left + 60 : CW_USEDEFAULT,
                                   parent ? owner.top + 60 : CW_USEDEFAULT,

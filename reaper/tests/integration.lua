@@ -240,12 +240,16 @@ local function run()
     test(X.state(legacy).schema==2 and reaper.CountTakes(legacy)==2 and reaper.GetActiveTake(legacy)==original_legacy,'Old preview migrates to direct source editing without another take or track')
     _G.BCS_PANEL_NO_RUN=true;local UI=dofile(here..'/../BreathClickStudio.lua');_G.BCS_PANEL_NO_RUN=nil
     local rate_item=reaper.GetMediaItemTake_Item(reaper.GetMediaItemTakeByGUID(0,bs.take_guid));selected{rate_item}
-    gfx.init('BreathClick Studio - REAPER preview',1040,760,0);UI.draw()
+    gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0);UI.draw()
     reaper.SetEditCurPos(25.5,false,false);UI.draw()
     test(UI.selected[ri],'Native REAPER cursor inside a breath selects the corresponding panel event')
     reaper.GetSet_LoopTimeRange2(0,true,false,25.42,25.55,false);UI.draw()
     test(UI.selected[ri],'Native REAPER time selection selects the corresponding breath')
     test(UI.wave_handles~=nil,'Actual panel renders original waveform and draggable boundary handles')
+    UI.action('Informazioni');UI.draw()
+    test(UI.about_open and UI.identity.name=='NL Breath Click Studio' and UI.identity.author=='Nicola Lanci Voice Over','Native panel renders Information with current product identity')
+    UI.action('Chiudi info');UI.draw()
+    test(not UI.about_open and UI.selected[ri],'Closing Information preserves the selected breath in the native panel')
     UI.wave.close();gfx.quit()
     return {status='passed',version=reaper.GetAppVersion(),resource=reaper.GetResourcePath(),checks=tests,heartbeat=heartbeat,
         outputs=outputs,source=source,prepared=X.media_path(st.prepared_rel),project=root..'/BreathClick diretto.rpp',gui_project=root..'/BreathClick editingGUI.rpp',learning_session=exported}

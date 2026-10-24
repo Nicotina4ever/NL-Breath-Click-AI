@@ -16,10 +16,10 @@ local previous_repeat=reaper.GetSetRepeat(-1);reaper.GetSetRepeat(1)
 X.settings.fade_ms=0
 local take_count=reaper.CountTakes(item);local take_guid=state.take_guid
 local initial_length=reaper.GetMediaItemInfo_Value(item,'D_LENGTH')
-gfx.init('BreathClick Studio - REAPER preview',1040,760,0)
+gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0)
 UI.draw();UI.selected={[index]=true};UI.scroll=math.max(0,index-1);UI.draw()
 reaper.atexit(function() X.cancel();X.stop_preview();UI.wave.close();gfx.quit() end)
-local ready={title='BreathClick Studio - REAPER preview',buttons=UI.buttons,row={x=25,y=UI.list_top+(index-UI.scroll-1)*27+12},handles=UI.wave_handles}
+local ready={title='NL Breath Click Studio - REAPER preview',buttons=UI.buttons,row={x=25,y=UI.list_top+(index-UI.scroll-1)*27+12},handles=UI.wave_handles}
 assert(J.write(root..'/ui_ready.json',ready))
 local phase,started,checks=0,reaper.time_precise(),J.array()
 local last_trace

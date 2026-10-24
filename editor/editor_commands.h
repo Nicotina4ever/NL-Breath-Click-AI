@@ -48,7 +48,7 @@ enum Id : int {
     kExportMp3VbrQ7,
     kExportMp3VbrQ8,
     kExportMp3VbrQ9,
-    // Sessione BreathClick Studio.
+    // Sessione NL Breath Click Studio.
     kFileSaveSession = 1007,
     kFileOpenSession = 1008,
     // Batch su una cartella.

@@ -148,11 +148,11 @@ local function transaction(label,contexts,fn)
         local restored=true
         for _,entry in ipairs(chunks) do local worked,value=pcall(reaper.SetItemStateChunk,entry[1],entry[2],false); restored=restored and worked and value end
         reaper.PreventUIRefresh(-1)
-        reaper.Undo_EndBlock2(0,'BreathClick: operazione ripristinata',-1)
+        reaper.Undo_EndBlock2(0,'NL Breath Click Studio: operazione ripristinata',-1)
         reaper.UpdateArrange()
         error(tostring(err)..(restored and '\nItem ripristinati.' or '\nRipristino incompleto: usa Ctrl+Z.'),0)
     end
-    reaper.PreventUIRefresh(-1); reaper.Undo_EndBlock2(0,'BreathClick: '..label,-1); reaper.UpdateArrange()
+    reaper.PreventUIRefresh(-1); reaper.Undo_EndBlock2(0,'NL Breath Click Studio: '..label,-1); reaper.UpdateArrange()
 end
 function X.review(mutator)
     check(not X.busy,'Attendi o annulla il lavoro corrente')
@@ -384,7 +384,7 @@ local function commit_render(entries)
             local sr=state.plan.sample_rate; local length=report.edited_frames/sr
             check(reaper.SetMediaItemInfo_Value(ctx.item,'D_LENGTH',length))
             local _,name=reaper.GetSetMediaItemTakeInfo_String(ctx.take,'P_NAME','',false)
-            check(reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME',(name or 'Voce')..' [BreathClick]',true))
+            check(reaper.GetSetMediaItemTakeInfo_String(take,'P_NAME',(name or 'Voce')..' [NL Breath Click Studio]',true))
             for i=0,reaper.GetNumTakeMarkers(ctx.take)-1 do
                 local pos,label,color=reaper.GetTakeMarker(ctx.take,i)
                 -- User take markers follow TimeMap; source time becomes segment time.
@@ -455,7 +455,8 @@ end
 function X.undo(redo)
     check(not X.busy,'Attendi o annulla il worker')
     local desc=redo and reaper.Undo_CanRedo2(0) or reaper.Undo_CanUndo2(0)
-    check(desc and desc:sub(1,12)=='BreathClick:','L\'ultima operazione non e\' di BreathClick: usa Undo/Redo di REAPER')
+    local prefix='NL Breath Click Studio:'
+    check(desc and (desc:sub(1,#prefix)==prefix or desc:sub(1,12)=='BreathClick:'),'L\'ultima operazione non e\' di NL Breath Click Studio: usa Undo/Redo di REAPER')
     if redo then reaper.Undo_DoRedo2(0) else reaper.Undo_DoUndo2(0) end
 end
 -- Direct editing extends the existing jobs, rollback, preflight and transport.

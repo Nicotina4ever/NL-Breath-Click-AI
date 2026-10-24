@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-"""Percorsi condivisi dei test BreathClick Studio.
+"""Percorsi condivisi dei test NL Breath Click Studio.
 
 Preferisce variabili d'ambiente, altrimenti deduce il workspace dalla posizione
 del repository: nessun percorso K: obbligatorio.

@@ -35,7 +35,7 @@ namespace {
 
 void usage() {
     std::cout <<
-        "BreathClick Studio CLI\n\n"
+        "NL Breath Click Studio CLI\n\n"
         "USO\n"
         "  bc_studio_cli analyze <file.wav> [--json <report.json>] [opzioni]\n"
         "  bc_studio_cli process <file.wav> --out-dir <cartella> [opzioni]\n"
@@ -901,7 +901,7 @@ static int runStudioCli(int argc, char** argv) {
     }
     const std::string command = argv[1];
     if (command == "selftest") return selftest();
-    if (command == "--version") { std::cout << "BreathClick Studio " << BC_STUDIO_VERSION << "\n"; return 0; }
+    if (command == "--version") { std::cout << "NL Breath Click Studio " << BC_STUDIO_VERSION << "\n"; return 0; }
     if (command == "session-selftest") return sessionSelftest();
     if (command == "review") return commandReview(argc, argv);
     if (command == "batch-review") return commandBatchReview(argc, argv);

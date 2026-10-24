@@ -2164,7 +2164,7 @@ bool writeReportText(const std::string& path, const Report& report,
     }
     std::ostringstream out;
     out << std::setprecision(17);
-    out << "BreathClick Studio - report di elaborazione\n";
+    out << "NL Breath Click Studio - report di elaborazione\n";
     out << "input: " << report.analysis.inputPath << "\n";
     out << "output: " << report.outputPath << "\n";
     out << "formato: " << report.analysis.sampleRate << " Hz, "

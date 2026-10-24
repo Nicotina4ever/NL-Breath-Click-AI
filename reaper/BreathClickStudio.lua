@@ -1,10 +1,10 @@
 -- SPDX-License-Identifier: MPL-2.0
--- @description BreathClick Studio - editing diretto, TimeMap e apprendimento
+-- @description NL Breath Click Studio - editing diretto, TimeMap e apprendimento
 -- @version 0.2.0-preview
--- @author BreathClick
+-- @author Nicola Lanci Voice Over
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local X=dofile(here..'/bc_studio_bridge.lua')
-local UI={bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
+local UI={identity={name='NL Breath Click Studio',version='1.0.0-rc.2',adapter_version='0.2.0-preview',author='Nicola Lanci Voice Over',email='info@nicolalanci.com',website='www.nicolalanci.com'},bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
 local function invoke(fn)
     local previous=X.status; X.last_error=nil
     local ok,err=xpcall(fn,debug.traceback)
@@ -13,7 +13,13 @@ local function invoke(fn)
     UI.refresh=-1
 end
 function UI.action(name)
-    if name=='Analizza' then X.begin('analyze',X.selected_items())
+    if name=='Informazioni' then UI.about_open=true
+    elseif name=='Chiudi info' then UI.about_open=false
+    elseif name=='Sito web' or name=='Email' then
+        local target=name=='Email' and 'mailto:info@nicolalanci.com' or 'https://www.nicolalanci.com'
+        if reaper.CF_ShellExecute then reaper.CF_ShellExecute(target)
+        else reaper.ExecProcess('cmd.exe /d /c start "" "'..target..'"',-2) end
+    elseif name=='Analizza' then X.begin('analyze',X.selected_items())
     elseif name=='Applica incluse' then X.begin('render',X.selected_items())
     elseif name=='Annulla lavoro' then X.cancel()
     elseif name=='Da selezione' then UI.reveal_id=X.add_manual()
@@ -45,7 +51,7 @@ function UI.action(name)
     elseif name=='Motore' then X.configure_engine()
     elseif name=='Fusion / DSP' then X.settings.detector=X.settings.detector=='fusion' and 'dsp' or 'fusion'; X.save_settings()
     elseif name=='Impostazioni' then
-        local ok,text=reaper.GetUserInputs('BreathClick - trattamento',2,'Attenuazione dB,Fade ms',tostring(X.settings.reduction_db)..','..tostring(X.settings.fade_ms))
+        local ok,text=reaper.GetUserInputs('NL Breath Click Studio - trattamento',2,'Attenuazione dB,Fade ms',tostring(X.settings.reduction_db)..','..tostring(X.settings.fade_ms))
         if ok then
             local a,b=text:match('^([^,]+),([^,]+)$'); a=tonumber(a); b=tonumber(b)
             assert(a and b and a==a and b==b and a>=-120 and a<=0 and b>=0 and b<=500,'Usa attenuazione da -120 a 0 dB e fade da 0 a 500 ms')
@@ -74,7 +80,7 @@ function UI.action(name)
             X.set_bounds({[index]=true},math.floor(a*sr+.5),math.floor(b*sr+.5))
         end
     elseif name=='Aiuto' then
-        reaper.ShowMessageBox('Seleziona un evento nella lista o con una selezione temporale in REAPER.\nTrascina le maniglie gialle per correggere i bordi, oppure premi Usa selezione.\nAttenua / Silenzia / Taglia / Dimezza applicano subito SOLO gli eventi selezionati, sulla stessa take e traccia. Applica incluse rimane il batch.\n\nCompatta voce accorcia l\'audio dentro l\'item. Mantieni sync riempie il tempo liberato con pausa e conserva la durata. Gli altri item e cue non si spostano.\nOriginale / Elaborato cambiano sorgente sulla stessa take; Ctrl+Z/Y annulla/ripete. Conserva BreathClick Media con il progetto.\n\nApprendimento facoltativo: Conferma respiro, Falso positivo, Mancato. Escludi e\' solo editoriale. Esporta etichette crea una sessione standalone. Crea profilo usa solo etichette esplicite degli item selezionati e richiede registrazioni indipendenti. Profilo attiva o carica lo stesso calibratore .ini della standalone.','BreathClick - editing diretto',0)
+        reaper.ShowMessageBox('Seleziona un evento nella lista o con una selezione temporale in REAPER.\nTrascina le maniglie gialle per correggere i bordi, oppure premi Usa selezione.\nAttenua / Silenzia / Taglia / Dimezza applicano subito SOLO gli eventi selezionati, sulla stessa take e traccia. Applica incluse rimane il batch.\n\nCompatta voce accorcia l\'audio dentro l\'item. Mantieni sync riempie il tempo liberato con pausa e conserva la durata. Gli altri item e cue non si spostano.\nOriginale / Elaborato cambiano sorgente sulla stessa take; Ctrl+Z/Y annulla/ripete. Conserva BreathClick Media con il progetto.\n\nApprendimento facoltativo: Conferma respiro, Falso positivo, Mancato. Escludi e\' solo editoriale. Esporta etichette crea una sessione standalone. Crea profilo usa solo etichette esplicite degli item selezionati e richiede registrazioni indipendenti. Profilo attiva o carica lo stesso calibratore .ini della standalone.','NL Breath Click Studio - editing diretto',0)
     end
 end
 local function color(r,g,b,a) gfx.set(r,g,b,a or 1) end
@@ -93,6 +99,25 @@ UI.wave=dofile(here..'/bc_direct_view.lua')(UI,X,invoke,text,color,inside)
 function UI.draw()
     local key=gfx.getchar() -- update native mouse/key events before reading their state
     X.tick()
+    if UI.about_open then
+        if key==27 then UI.about_open=false; return true end
+        local clicked=(gfx.mouse_cap&1)==1 and (UI.last_mouse&1)==0
+        UI.last_mouse=gfx.mouse_cap
+        color(.075,.095,.12); gfx.rect(0,0,gfx.w,gfx.h,1)
+        gfx.setfont(1,'Segoe UI',20)
+        text(30,35,UI.identity.name,.55,.87,.95)
+        gfx.setfont(1,'Segoe UI',17)
+        text(30,78,'Versione '..UI.identity.version..' · REAPER adapter '..UI.identity.adapter_version)
+        text(30,112,UI.identity.author)
+        text(30,146,UI.identity.email)
+        text(30,176,UI.identity.website)
+        text(30,215,'Mozilla Public License 2.0 (MPL-2.0)',.65,.75,.8)
+        button('Sito web',30,260,110,clicked)
+        button('Email',150,260,100,clicked)
+        button('Chiudi info',260,260,125,clicked)
+        gfx.update()
+        return key>=0
+    end
     local changed=reaper.GetProjectStateChangeCount(0)
     local item=reaper.GetSelectedMediaItem(0,0)
     if changed~=UI.refresh or item~=UI.item or UI.was_busy~=X.busy then
@@ -135,14 +160,14 @@ function UI.draw()
     UI.last_mouse=gfx.mouse_cap
     color(.075,.095,.12); gfx.rect(0,0,gfx.w,gfx.h,1)
     gfx.setfont(1,'Segoe UI',17)
-    text(14,10,'BreathClick Studio · editing diretto',.55,.87,.95)
+    text(14,10,'NL Breath Click Studio · editing diretto',.55,.87,.95)
     text(14,34,string.format('%s  |  %.1f dB · fade %.0f ms',X.settings.detector:upper(),X.settings.reduction_db,X.settings.fade_ms))
     local rows={
         {{'Analizza',90},{'Applica incluse',125},{'Annulla lavoro',122},{'Da selezione',113},{'Usa selezione',122},{'Bordi...',76},{'Impostazioni',110}},
         {{'Attenua',85},{'Silenzia',85},{'Taglia',76},{'Dimezza',89},{'Compatta voce',137},{'Mantieni sync',137}},
         {{'Tutte',63},{'Includi',78},{'Escludi',78},{'Conferma respiro',153},{'Falso positivo',135},{'Mancato',87}},
         {{'Originale',98},{'Elaborato',98},{'Ascolta',90},{'Undo',73},{'Redo',73},{'Fusion / DSP',119},{'Motore',82},{'Aiuto',70}},
-        {{'Esporta etichette',158},{'Crea profilo',120},{'Profilo',84},{'Carica profilo',139}},
+        {{'Esporta etichette',158},{'Crea profilo',120},{'Profilo',84},{'Carica profilo',139},{'Informazioni',125}},
     }
     for row,buttons in ipairs(rows) do local x=14; for _,b in ipairs(buttons) do button(b[1],x,54+(row-1)*35,b[2],clicked); x=x+b[2]+6 end end
     -- A/B and Undo can replace the source while a button is being drawn.
@@ -216,12 +241,12 @@ function UI.draw()
 end
 function UI.open()
     X.load_settings()
-    gfx.init('BreathClick Studio - REAPER preview',1040,760,0)
+    gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0)
     reaper.atexit(function() X.cancel(); X.stop_preview(); UI.wave.close(); gfx.quit() end)
     local function frame()
         local ok,keep=xpcall(UI.draw,debug.traceback)
         if ok and keep then reaper.defer(frame)
-        elseif not ok then X.cancel(); reaper.ShowMessageBox(tostring(keep),'BreathClick',0) end
+        elseif not ok then X.cancel(); reaper.ShowMessageBox(tostring(keep),'NL Breath Click Studio',0) end
     end
     frame()
 end

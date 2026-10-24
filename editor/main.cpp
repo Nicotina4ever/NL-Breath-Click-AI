@@ -62,7 +62,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     bc::EditorWindow window;
     if (!window.create(instance)) {
         MessageBoxW(nullptr, L"Impossibile creare la finestra dell'editor.",
-                    L"BreathClick Editor", MB_ICONERROR | MB_OK);
+                    L"NL Breath Click Studio", MB_ICONERROR | MB_OK);
         return 1;
     }
 

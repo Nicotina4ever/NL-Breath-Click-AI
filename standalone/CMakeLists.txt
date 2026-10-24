@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0
 # ============================================================================
-#  BreathClick Studio — standalone Windows e CLI del motore condiviso
+#  NL Breath Click Studio — standalone Windows e CLI del motore condiviso
 # ============================================================================
 project(bc_studio LANGUAGES CXX)
 

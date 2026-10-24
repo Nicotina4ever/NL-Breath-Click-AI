@@ -17,7 +17,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ZipPath,
     [switch]$StaticOnly,
-    [switch]$KeepTemp = $true,
+    [switch]$KeepTemp = $false,
     [string]$PythonExecutable = '',
     [switch]$RunGuiTests
 )
@@ -216,4 +216,15 @@ if ($RunGuiTests -and -not $StaticOnly) {
 $files = Get-ChildItem $extract -Recurse -File
 Write-Host ("RELEASE VERIFY OK: {0} file, {1} dipendenze PE controllate" -f $files.Count, $allDeps.Count)
 Write-Host ("ZIP: {0}" -f $zip)
-Write-Host "Validation artifacts retained: $work"
+if ($KeepTemp) {
+    Write-Host "Validation artifacts retained: $work"
+} else {
+    $resolvedWork = [IO.Path]::GetFullPath($work)
+    $tempPrefix = [IO.Path]::GetFullPath($env:TEMP).TrimEnd('\') + '\'
+    if (-not $resolvedWork.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+        -not ([IO.Path]::GetFileName($resolvedWork)).StartsWith('bc_release_verify_')) {
+        throw 'Invalid verification cleanup path'
+    }
+    Remove-Item -LiteralPath $resolvedWork -Recurse -Force
+    Write-Host 'Temporary verification output removed'
+}

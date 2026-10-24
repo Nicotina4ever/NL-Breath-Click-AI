@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "core/util/atomic_file.h"
 // ============================================================================
-//  editor_project.cpp — ambiente multi-file e progetto BreathClick Studio
+//  editor_project.cpp — ambiente multi-file e progetto NL Breath Click Studio
 //
 //  Estende la finestra esistente senza riscrivere l'editor: il documento
 //  attivo continua a vivere in document_, gli altri in tracks_. Il pannello
@@ -724,13 +724,13 @@ void EditorWindow::commandOpenFolder() {
     std::sort(files.begin(), files.end());
     if (files.empty()) {
         MessageBoxW(window_, L"Nessun file WAV, MP3 o FLAC trovato nella cartella.",
-                    L"BreathClick Studio", MB_OK | MB_ICONINFORMATION);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (!tracks_.empty()) {
         const int answer = MessageBoxW(window_,
             L"Sostituire il progetto attualmente aperto con la cartella scelta?",
-            L"BreathClick Studio", MB_YESNO | MB_ICONQUESTION);
+            L"NL Breath Click Studio", MB_YESNO | MB_ICONQUESTION);
         if (answer != IDYES) return;
     }
     tracks_.clear();
@@ -768,12 +768,12 @@ bool EditorWindow::saveProjectPath(const std::string& path) {
 void EditorWindow::commandOpenProject() {
     std::string path;
     if (!chooseFilePath(window_, false,
-                        L"Progetto BreathClick (*.bcnproj.json)\0*.bcnproj.json\0JSON (*.json)\0*.json\0",
+                        L"Progetto NL Breath Click Studio (*.bcnproj.json)\0*.bcnproj.json\0JSON (*.json)\0*.json\0",
                         L"bcnproj.json", path)) return;
     std::string error;
     if (!loadProjectFrom(path, &error)) {
         MessageBoxW(window_, wide("Progetto non leggibile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
 }
@@ -786,13 +786,13 @@ void EditorWindow::commandSaveProject(bool saveAs) {
     std::string path = projectPath_;
     if (saveAs || path.empty()) {
         if (!chooseFilePath(window_, true,
-                            L"Progetto BreathClick (*.bcnproj.json)\0*.bcnproj.json\0JSON (*.json)\0*.json\0",
+                            L"Progetto NL Breath Click Studio (*.bcnproj.json)\0*.bcnproj.json\0JSON (*.json)\0*.json\0",
                             L"bcnproj.json", path)) return;
     }
     std::string error;
     if (!saveProjectTo(path, &error)) {
         MessageBoxW(window_, wide("Salvataggio progetto non riuscito:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     projectPath_ = path;
@@ -809,7 +809,7 @@ void EditorWindow::commandRecoverProject() {
     std::string error;
     if (!loadProjectFrom(recovery, &error)) {
         MessageBoxW(window_, wide("Autosalvataggio non leggibile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     projectPath_.clear();
@@ -843,7 +843,7 @@ bool EditorWindow::analyzeActiveTrack(bool interactive, std::string* error) {
         }
         if (interactive) {
             MessageBoxW(window_, wide("Analisi non riuscita:\n\n" + analysisError).c_str(),
-                        L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                        L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         }
         return false;
     }
@@ -998,13 +998,13 @@ void EditorWindow::approveAllTracks() {
 int EditorWindow::exportAllTo(const std::string& outputDirectory, bool showSummary) {
     if (tracks_.empty()) {
         if (showSummary) {
-            MessageBoxW(window_, L"Nessun file aperto.", L"BreathClick Studio", MB_OK);
+            MessageBoxW(window_, L"Nessun file aperto.", L"NL Breath Click Studio", MB_OK);
         }
         return 0;
     }
     if (showSummary) {
         const std::wstring summary = wide(globalEditSummary(true));
-        if (MessageBoxW(window_, summary.c_str(), L"BreathClick Studio - riepilogo",
+        if (MessageBoxW(window_, summary.c_str(), L"NL Breath Click Studio - riepilogo",
                         MB_YESNO | MB_ICONQUESTION) != IDYES) {
             return 0;
         }
@@ -1058,7 +1058,7 @@ int EditorWindow::exportAllTo(const std::string& outputDirectory, bool showSumma
         const std::string summary = "Export: " + std::to_string(exported) + " elaborati, " +
             std::to_string(skipped) + " senza interventi, " + std::to_string(errors) + " errori.\n\n" +
             "Uscita: " + outputDirectory;
-        MessageBoxW(window_, wide(summary).c_str(), L"BreathClick Studio", MB_OK);
+        MessageBoxW(window_, wide(summary).c_str(), L"NL Breath Click Studio", MB_OK);
         setStatusMessage("export completato: " + std::to_string(exported));
     }
     saveRecovery();

@@ -27,18 +27,33 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "BreathClick"
-            VALUE "FileDescription", "BreathClick Studio release candidate"
+            VALUE "CompanyName", "Nicola Lanci Voice Over"
+            VALUE "FileDescription", "NL Breath Click Studio release candidate"
             VALUE "FileVersion", BC_STUDIO_VERSION
             VALUE "InternalName", "bc_studio"
             VALUE "OriginalFilename", "bc_studio.exe"
-            VALUE "ProductName", "BreathClick Studio"
+            VALUE "ProductName", "NL Breath Click Studio"
             VALUE "ProductVersion", BC_STUDIO_VERSION
-            VALUE "LegalCopyright", "Copyright (c) 2026 BreathClick"
+            VALUE "LegalCopyright", "Copyright (c) 2026 Nicola Lanci"
         END
     END
     BLOCK "VarFileInfo"
     BEGIN
         VALUE "Translation", 0x409, 1200
     END
+END
+
+// Modal information window shared by the standalone and waveform editor.
+4100 DIALOGEX 0, 0, 290, 166
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Informazioni su NL Breath Click Studio"
+FONT 10, "Segoe UI"
+BEGIN
+    LTEXT BC_PRODUCT_NAME, -1, 14, 12, 264, 16
+    LTEXT "", 4103, 14, 34, 264, 14
+    LTEXT "Nicola Lanci Voice Over", -1, 14, 55, 264, 14
+    PUSHBUTTON "info@nicolalanci.com", 4101, 14, 77, 126, 19
+    PUSHBUTTON "www.nicolalanci.com", 4102, 148, 77, 126, 19
+    LTEXT "Mozilla Public License 2.0 (MPL-2.0)", -1, 14, 107, 264, 14
+    DEFPUSHBUTTON "Chiudi", IDOK, 214, 136, 60, 20
 END

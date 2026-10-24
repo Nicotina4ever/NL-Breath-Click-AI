@@ -1,4 +1,4 @@
-# BreathClick Studio 1.0.0-rc.2
+# NL Breath Click Studio 1.0.0-rc.2
 
 Candidate Windows x64 successiva alla RC1. Non e' la 1.0 definitiva:
 restano l'ascolto professionale dell'utente e il collaudo su Windows pulito.

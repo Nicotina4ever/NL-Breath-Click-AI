@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "studio_dialogs.h"
+#include "version.h"
 
 #ifdef _WIN32
 
 #include <commdlg.h>
+#include <shellapi.h>
 #include <shlobj.h>
 #include <shobjidl.h>
 #include <string>
@@ -12,6 +14,26 @@
 
 namespace bc {
 namespace {
+
+INT_PTR CALLBACK aboutProc(HWND window, UINT message, WPARAM wParam, LPARAM) {
+    if (message == WM_INITDIALOG) {
+        SetDlgItemTextW(window, 4103, L"Versione " BC_STUDIO_VERSION_W L" - release candidate");
+        return TRUE;
+    }
+    if (message == WM_COMMAND) {
+        const int id = LOWORD(wParam);
+        if (id == IDOK || id == IDCANCEL) { EndDialog(window, id); return TRUE; }
+        const wchar_t* target = id == 4101 ? L"mailto:info@nicolalanci.com" :
+                                id == 4102 ? L"https://www.nicolalanci.com" : nullptr;
+        if (target) {
+            const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(window, L"open", target, nullptr, nullptr, SW_SHOWNORMAL));
+            if (result <= 32) MessageBoxW(window, L"Impossibile aprire il collegamento. Usa l'indirizzo riportato nella finestra Informazioni.",
+                                         BC_PRODUCT_NAME_W, MB_OK | MB_ICONINFORMATION);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
 
 std::string toUtf8(const std::wstring& text) {
     if (text.empty()) return {};
@@ -161,6 +183,13 @@ LRESULT CALLBACK dialogProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 }
 
 } // namespace
+
+void showAboutDialog(HWND parent) {
+    if (DialogBoxParamW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(4100), parent, aboutProc, 0) == -1)
+        MessageBoxW(parent, BC_PRODUCT_NAME_W L" " BC_STUDIO_VERSION_W L"\n\n" BC_AUTHOR_W
+                    L"\n" BC_EMAIL_W L"\n" BC_WEBSITE_W L"\n\nMozilla Public License 2.0 (MPL-2.0)",
+                    L"Informazioni su " BC_PRODUCT_NAME_W, MB_OK | MB_ICONINFORMATION);
+}
 
 bool showAttenuationDialog(HWND parent, float& reductionDb, double& fadeMs,
                            double* crossfadeMs) {

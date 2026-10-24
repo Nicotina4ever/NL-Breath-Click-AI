@@ -13,6 +13,7 @@
 namespace bc {
 
 #ifdef _WIN32
+void showAboutDialog(HWND parent);
 bool showAttenuationDialog(HWND parent, float& reductionDb, double& fadeMs,
                            double* crossfadeMs = nullptr);
 bool showKeepFractionDialog(HWND parent, double& keepFraction);

@@ -45,3 +45,41 @@ adapter.stop_preview()
 assert(stopped=='projectA' and repeat_value==1 and adapter.preview_end==nil)
 ''')
 print('LUA ADAPTER OK: syntax, strict JSON/Unicode, marker mapping; no REAPER/audio simulation claimed')
+
+# Information screen uses the real panel module; contact launching is stubbed.
+lua.execute('BCS_PANEL_NO_RUN=true')
+panel = lua.execute(f'return dofile({json.dumps((root / "BreathClickStudio.lua").as_posix())})')
+assert panel.identity.name == 'NL Breath Click Studio'
+assert panel.identity.author == 'Nicola Lanci Voice Over'
+assert panel.identity.email == 'info@nicolalanci.com'
+assert panel.identity.website == 'www.nicolalanci.com'
+assert panel.identity.version == '1.0.0-rc.2'
+lua.globals()['panel'] = panel
+lua.execute("""
+local command
+reaper.ExecProcess=function(text,timeout) command=text; assert(timeout==-2); return '' end
+panel.action('Informazioni'); assert(panel.about_open)
+panel.action('Sito web'); assert(command=='cmd.exe /d /c start "" "https://www.nicolalanci.com"')
+panel.action('Email'); assert(command=='cmd.exe /d /c start "" "mailto:info@nicolalanci.com"')
+panel.action('Chiudi info'); assert(not panel.about_open)
+-- Esc closes only Information, preserving the editing panel.
+panel.action('Informazioni')
+gfx={getchar=function() return 27 end}
+panel.bridge.tick=function() end
+assert(panel.draw()==true and not panel.about_open)
+""")
+print('PANEL INFO OK: identity, contact destinations and Esc; no external application opened')
+
+# Undo remains compatible with already open/saved projects using the old label.
+lua.execute("""
+local description, calls = '', 0
+reaper.Undo_CanUndo2=function() return description end
+reaper.Undo_DoUndo2=function() calls=calls+1 end
+adapter.busy=false
+for _,label in ipairs({'BreathClick: Dimezza','NL Breath Click Studio: Dimezza'}) do
+ description=label; adapter.undo(false)
+end
+assert(calls==2)
+description='External editor operation'
+assert(not pcall(adapter.undo,false) and calls==2)
+""")

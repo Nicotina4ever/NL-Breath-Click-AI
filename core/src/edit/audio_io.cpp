@@ -704,7 +704,7 @@ std::vector<unsigned char> buildId3v2(const AudioTags& tags, double durationSeco
     {
         char description[128] = {};
         snprintf(description, sizeof(description),
-                 "BreathClick Studio / LAME 3.100 / %s / %d Hz / %d ch",
+                 "NL Breath Click Studio / LAME 3.100 / %s / %d Hz / %d ch",
                  settings.vbr ? "VBR" : "CBR", sampleRate, channels);
         const std::vector<unsigned char> frame = buildFrame("TSSE", description);
         frames.insert(frames.end(), frame.begin(), frame.end());

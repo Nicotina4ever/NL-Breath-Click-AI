@@ -126,12 +126,12 @@ bool saveDetectorSettings(const DetectorSettings& settings, std::string* error) 
     std::error_code ec;
     std::filesystem::create_directories(directory, ec);
     return writeTextAtomic((directory / "detector_settings.ini").u8string(),
-        "# BreathClick Studio - impostazioni di rilevamento confermate\n" + serializeDetectorSettings(settings), error);
+        "# NL Breath Click Studio - impostazioni di rilevamento confermate\n" + serializeDetectorSettings(settings), error);
 }
 
 bool saveDetectorPreset(const std::string& path, const DetectorSettings& settings,
                         std::string* error) {
-    return writeTextAtomic(path, "# BreathClick Studio detector preset\n" + serializeDetectorSettings(settings), error);
+    return writeTextAtomic(path, "# NL Breath Click Studio detector preset\n" + serializeDetectorSettings(settings), error);
 }
 
 bool loadDetectorPreset(const std::string& path, DetectorSettings& settings,

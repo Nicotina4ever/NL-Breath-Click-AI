@@ -76,7 +76,7 @@ if (-not $RuntimeDirectory) {
 $dlls = @(Get-ChildItem -LiteralPath $RuntimeDirectory -Filter '*.dll')
 if ($dlls.Count -eq 0) { throw 'VC++ redistributable not found; provide -RuntimeDirectory' }
 $dlls | Copy-Item -Destination $stage
-Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Value "BreathClick Studio $Version - release candidate" -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $stage 'VERSION.txt') -Value "NL Breath Click Studio $Version - release candidate" -Encoding UTF8
 $revision = if ($SourceCommit) { $SourceCommit } else { (& git -C $root rev-parse HEAD).Trim() }
 $buildInfo = [ordered]@{ version = $Version; source_commit = $revision; configuration = 'Release';
     platform = 'Windows x64'; onnx_runtime = (Get-Item -LiteralPath (Join-Path $build 'onnxruntime.dll')).VersionInfo.FileVersion;
@@ -90,8 +90,8 @@ $manifest = foreach ($file in Get-ChildItem -LiteralPath $stage -File -Recurse |
 ConvertTo-Json -InputObject @($manifest) -Depth 4 | Set-Content -LiteralPath (Join-Path $stage 'PACKAGE_MANIFEST.json') -Encoding UTF8
 $dist = Join-Path $root 'dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
-$zip = Join-Path $dist "BreathClickStudio_$Version.zip"
-$pending = Join-Path $dist ("BreathClickStudio_$Version.pending_" + [guid]::NewGuid().ToString('N') + '.zip')
+$zip = Join-Path $dist "NL_Breath_Click_Studio_$Version.zip"
+$pending = Join-Path $dist ("NL_Breath_Click_Studio_$Version.pending_" + [guid]::NewGuid().ToString('N') + '.zip')
 Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $pending -CompressionLevel Optimal
 # Replace only after the pending archive is complete; no backup/history copy.
 if (Test-Path -LiteralPath $zip) { [IO.File]::Replace($pending,$zip,[NullString]::Value) }

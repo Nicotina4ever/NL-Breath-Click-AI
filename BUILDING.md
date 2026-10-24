@@ -76,7 +76,7 @@ Core sono indipendenti da questi pesi. Non distribuire build con pesi privati.
 ```powershell
 powershell -File scripts/package_studio.ps1 -SourceCommit "<commit-dei-binari>"
 powershell -File scripts/verify_release.ps1 `
-  -ZipPath dist/BreathClickStudio_1.0.0-rc.2.zip `
+  -ZipPath dist/NL_Breath_Click_Studio_1.0.0-rc.2.zip `
   -PythonExecutable "<python.exe>" -RunGuiTests
 ```
 
@@ -100,4 +100,4 @@ La prima preparazione legge l'eseguibile indicato. Le prove successive riusano
 `build/reaper_sandbox/portable`, con hash e mutex. Non iniziare un test con
 l'istanza aperta. Le prove GUI aspettano il puntatore libero e interrompono
 l'input se viene mosso contemporaneamente. Il launcher locale
-`reaper/Apri_BreathClick_Prova.cmd` apre la demo senza deploy professionale.
+`reaper/Apri_NL_Breath_Click_Studio.cmd` apre la demo senza deploy professionale.

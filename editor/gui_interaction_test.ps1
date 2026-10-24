@@ -216,6 +216,29 @@ $GLOBAL:view = $view
 Check 'forma d onda e pannello presenti' ($view -ne [IntPtr]::Zero -and $panel -ne [IntPtr]::Zero)
 Check 'due regioni caricate' ((PanelValue $panel 3105) -eq '-') 'pannello non deve avere selezione iniziale'
 
+# Information is a real modal dialog; no browser or mail client is launched by tests.
+Check 'nome prodotto nel titolo' ((TextOf $script:hwnd) -like 'NL Breath Click Studio *')
+Command 1700
+$script:aboutHandle = [IntPtr]::Zero
+$findAbout = [Gui+EnumProc]{
+    param($candidate, $unused)
+    $ownerId = [uint32]0
+    [void][Gui]::GetWindowThreadProcessId($candidate, [ref]$ownerId)
+    if ($ownerId -eq $script:procId -and (TextOf $candidate) -eq 'Informazioni su NL Breath Click Studio') { $script:aboutHandle = $candidate }
+    return $true
+}
+[void][Gui]::EnumWindows($findAbout, [IntPtr]::Zero)
+Check 'Informazioni si apre' ($script:aboutHandle -ne [IntPtr]::Zero)
+if ($script:aboutHandle -ne [IntPtr]::Zero) {
+    CaptureViewPng $script:aboutHandle (Join-Path $work 'informazioni.png')
+    Check 'autore visibile' (PanelHas $script:aboutHandle 'Nicola Lanci Voice Over')
+    Check 'versione corrisponde al binario' ((PanelValue $script:aboutHandle 4103) -like ('Versione ' + (Get-Item $studio).VersionInfo.ProductVersion + ' *'))
+    Check 'pulsante email' ((PanelValue $script:aboutHandle 4101) -eq 'info@nicolalanci.com')
+    Check 'pulsante sito' ((PanelValue $script:aboutHandle 4102) -eq 'www.nicolalanci.com')
+    [void][Gui]::PostMessageW($script:aboutHandle, 0x0111, [IntPtr]2, [IntPtr]0)
+    Start-Sleep -Milliseconds 150
+}
+
 # --- clic sul centro della prima regione ---------------------------------
 $captureBefore = Join-Path $work 'selezione_prima.png'
 CaptureViewPng $view $captureBefore

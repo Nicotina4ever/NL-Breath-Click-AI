@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 // ============================================================================
-//  studio_main.cpp — avvio di BreathClick Studio
+//  studio_main.cpp — avvio di NL Breath Click Studio
 // ============================================================================
 #include <string>
 #include <vector>
@@ -91,8 +91,8 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
 
     bc::EditorWindow window;
     if (!window.create(instance)) {
-        MessageBoxW(nullptr, L"Impossibile creare la finestra di BreathClick Studio.",
-                    L"BreathClick Studio", MB_ICONERROR | MB_OK);
+        MessageBoxW(nullptr, L"Impossibile creare la finestra di NL Breath Click Studio.",
+                    L"NL Breath Click Studio", MB_ICONERROR | MB_OK);
         return 1;
     }
     window.setStudioMode(true);

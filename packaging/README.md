@@ -1,4 +1,4 @@
-# BreathClick Studio 1.0.0-rc.2
+# NL Breath Click Studio 1.0.0-rc.2
 
 Release candidata per Windows x64, con workflow multi-file per cartelle di
 spot. Il WAV originale non viene mai sovrascritto.
@@ -40,7 +40,7 @@ LEGGIMI_AVVIO.txt              avvio rapido
 TESTING.md          protocollo e checklist di collaudo
 CHANGELOG.md                   note della release candidate
 THIRD_PARTY_NOTICES.md         attribuzioni
-BreathClickStudio_1.0.0-rc.2.zip.sha256                 hash del pacchetto (fornito accanto allo ZIP)
+NL_Breath_Click_Studio_1.0.0-rc.2.zip.sha256                 hash del pacchetto (fornito accanto allo ZIP)
 ```
 
 ## Requisiti
@@ -111,7 +111,9 @@ Vedere `TESTING.md` per il piano di prova e i criteri di uscita.
 
 ## Licenze
 
-Il codice BreathClick Studio è privato. Componenti di terze parti:
+Il codice NL Breath Click Studio e' distribuito sotto Mozilla Public License 2.0
+(MPL-2.0), vedere `LICENSE`. Sorgenti: https://github.com/Nicotina4ever/NL-Breath-Click-AI.
+Componenti di terze parti conservano le proprie licenze:
 
 - ONNX Runtime — MIT (Microsoft)
 - Respiro-en — MIT (Dong Yang, Tomoki Koriyama, Yuki Saito)

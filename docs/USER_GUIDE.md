@@ -1,4 +1,4 @@
-# Guida operativa — BreathClick Studio 1.0.0-rc.2
+# Guida operativa — NL Breath Click Studio 1.0.0-rc.2
 
 Questa guida descrive la versione consegnata. Non copre REAPER, training o
 strumenti di sviluppo. Il WAV originale non viene mai modificato.
@@ -295,3 +295,10 @@ Il calibratore usa un file separato per valutare miss e falsi positivi; non
 recupera automaticamente respiri mancati. Le copie dello stesso audio non
 valgono come registrazioni indipendenti. Le generazioni di sessione precedenti
 restano nella cartella .breathclick_sessions: non sono audio originali.
+
+## Informazioni e contatti
+
+Aiuto > Informazioni mostra versione e licenza, Nicola Lanci Voice Over,
+info@nicolalanci.com e www.nicolalanci.com. I due pulsanti aprono il programma
+email e il sito nel browser. Nel pannello REAPER usare Informazioni; Esc
+chiude questa schermata senza chiudere il pannello o modificare il progetto.

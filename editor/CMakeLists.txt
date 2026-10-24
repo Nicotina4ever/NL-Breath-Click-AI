@@ -40,7 +40,7 @@ endif()
 
 # comctl32 e comdlg32 sono richiesti da commctrl.h e commdlg.h; winmm da waveOut.
 if(WIN32)
-    target_link_libraries(bc_editor PRIVATE comctl32 comdlg32 winmm bcrypt)
+    target_link_libraries(bc_editor PRIVATE comctl32 comdlg32 winmm bcrypt shell32)
 # I profili storici sono dati protetti e servono ai test dell'editor.
 add_custom_command(TARGET bc_editor POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:bc_editor>/models"

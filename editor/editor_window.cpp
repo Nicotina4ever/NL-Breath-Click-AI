@@ -339,7 +339,7 @@ std::string choosePresetPath(HWND owner, bool save) {
     OPENFILENAMEW dialog = {};
     dialog.lStructSize = sizeof(dialog);
     dialog.hwndOwner = owner;
-    dialog.lpstrFilter = L"Preset BreathClick (*.bcpreset)\0*.bcpreset\0Tutti i file (*.*)\0*.*\0";
+    dialog.lpstrFilter = L"Preset NL Breath Click Studio (*.bcpreset)\0*.bcpreset\0Tutti i file (*.*)\0*.*\0";
     dialog.lpstrFile = path;
     dialog.nMaxFile = MAX_PATH;
     dialog.lpstrTitle = save ? L"Salva preset di rilevamento" : L"Apri preset di rilevamento";
@@ -793,7 +793,7 @@ bool EditorWindow::create(HINSTANCE instance) {
         return false;
     }
 
-    window_ = CreateWindowExW(0, kWindowClass, L"BreathClick Studio " BC_STUDIO_VERSION_W,
+    window_ = CreateWindowExW(0, kWindowClass, L"NL Breath Click Studio " BC_STUDIO_VERSION_W,
                               WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
                               CW_USEDEFAULT, CW_USEDEFAULT, 1180, 820,
                               nullptr, nullptr, instance, this);
@@ -1082,7 +1082,7 @@ void EditorWindow::createMenus() {
     const MenuEntry helpEntries[] = {
         {MF_STRING, EditorCommand::kHelpShortcuts, L"Tasti e scorciatoie\tF1"},
         {MF_SEPARATOR, 0, nullptr},
-        {MF_STRING, EditorCommand::kHelpAbout, L"Informazioni su BreathClick"}};
+        {MF_STRING, EditorCommand::kHelpAbout, L"Informazioni su NL Breath Click Studio"}};
 
     const MenuEntry exportEntries[] = {
         {MF_STRING, EditorCommand::kExportFormatSame, L"Stesso formato dell'originale (default)"},
@@ -1476,7 +1476,7 @@ LRESULT EditorWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
 //  Titolo e barra di stato
 // ---------------------------------------------------------------------------
 void EditorWindow::updateTitle() {
-    std::wstring titolo = L"BreathClick Studio " BC_STUDIO_VERSION_W;
+    std::wstring titolo = L"NL Breath Click Studio " BC_STUDIO_VERSION_W;
 
     if (document_.isLoaded()) {
         titolo += L" - ";
@@ -2107,7 +2107,7 @@ bool EditorWindow::loadFile(const std::string& path) {
     std::string error;
     if (!document_.load(path, &error)) {
         MessageBoxW(window_, toWide("Impossibile aprire il file:\n\n" + error).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         setStatusMessage("apertura non riuscita: " + error);
         return false;
     }
@@ -2171,7 +2171,7 @@ void EditorWindow::addTrackAndLoad(const std::string& path) {
     std::string error;
     if (!nuovo.load(path, &error)) {
         MessageBoxW(window_, toWide("Impossibile aprire il file:\n\n" + error).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         setStatusMessage("apertura non riuscita: " + error);
         return;
     }
@@ -2425,12 +2425,12 @@ void EditorWindow::commandSaveAs() {
     if (mp3) {
         if (!exportActiveTrackTo(percorso, &error)) {
             MessageBoxW(window_, toWide("Salvataggio non riuscito:\n\n" + error).c_str(),
-                        L"BreathClick", MB_OK | MB_ICONERROR);
+                        L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
             return;
         }
     } else if (!document_.save(percorso, WavFormat::Pcm24, editSettings_, &error)) {
         MessageBoxW(window_, toWide("Salvataggio non riuscito:\n\n" + error).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -2452,7 +2452,7 @@ void EditorWindow::commandExport() {
     std::string error;
     if (!document_.save(percorso, WavFormat::Pcm24, editSettings_, &error)) {
         MessageBoxW(window_, toWide("Esportazione non riuscita:\n\n" + error).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -2493,7 +2493,7 @@ void EditorWindow::commandExport() {
 }
 
 // ===========================================================================
-//  Sessione e batch di BreathClick Studio
+//  Sessione e batch di NL Breath Click Studio
 // ===========================================================================
 void EditorWindow::commandSaveSession() {
     if (!document_.isLoaded()) {
@@ -2502,14 +2502,14 @@ void EditorWindow::commandSaveSession() {
     }
     std::string path;
     if (!chooseFilePath(window_, true,
-                        L"Sessione BreathClick (*.bcnstudio.json)\0*.bcnstudio.json\0JSON (*.json)\0*.json\0",
+                        L"Sessione NL Breath Click Studio (*.bcnstudio.json)\0*.bcnstudio.json\0JSON (*.json)\0*.json\0",
                         L"bcnstudio.json", path)) {
         return;
     }
     std::string error;
     if (!studio::saveSession(path, makeSessionFor(document_), &error)) {
         MessageBoxW(window_, toWide("Salvataggio sessione non riuscito:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     if (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(trackSessionRelative_.size())) {
@@ -2521,7 +2521,7 @@ void EditorWindow::commandSaveSession() {
 void EditorWindow::commandOpenSession() {
     std::string path;
     if (!chooseFilePath(window_, false,
-                        L"Sessione BreathClick (*.bcnstudio.json)\0*.bcnstudio.json\0JSON (*.json)\0*.json\0",
+                        L"Sessione NL Breath Click Studio (*.bcnstudio.json)\0*.bcnstudio.json\0JSON (*.json)\0*.json\0",
                         L"bcnstudio.json", path)) {
         return;
     }
@@ -2533,7 +2533,7 @@ bool EditorWindow::openSessionFile(const std::string& path) {
     std::string error;
     if (!studio::loadSession(path, &session, &error)) {
         MessageBoxW(window_, toWide("Sessione non leggibile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return false;
     }
     AudioFileInfo sourceInfo;
@@ -2615,13 +2615,13 @@ void EditorWindow::commandBatchReviewed() {
     if (!studio::processFolderReviewed(inputDirectory, outputDirectory, plansDirectory,
                                       &report, &error)) {
         MessageBoxW(window_, toWide("Batch revisionato non riuscito:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     std::string message = "Batch revisionato: " + std::to_string(report.applied) +
         " applicati, " + std::to_string(report.skipped) + " da rivedere/saltati.\n\n" +
         "Uscita: " + outputDirectory;
-    MessageBoxW(window_, toWide(message).c_str(), L"BreathClick Studio", MB_OK);
+    MessageBoxW(window_, toWide(message).c_str(), L"NL Breath Click Studio", MB_OK);
     setStatusMessage("batch revisionato: " + std::to_string(report.applied) + " applicati");
 }
 
@@ -2856,12 +2856,12 @@ void EditorWindow::commandPreview() {
     std::string error;
     if (!buildEditPlan(&plan, &error)) {
         MessageBoxW(window_, toWide("Anteprima non disponibile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONINFORMATION);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONINFORMATION);
         return;
     }
     if (!studio::applyEditPlan(document_.audio(), plan, &preview_, &error)) {
         MessageBoxW(window_, toWide("Anteprima non applicabile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     auto copy = std::make_shared<std::vector<float>>(preview_.audio.samples);
@@ -2885,18 +2885,18 @@ void EditorWindow::commandExportPlan() {
     std::string error;
     if (!buildEditPlan(&plan, &error)) {
         MessageBoxW(window_, toWide("Piano non esportabile:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONINFORMATION);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONINFORMATION);
         return;
     }
     std::string path;
     if (!chooseFilePath(window_, true,
-            L"Piano BreathClick (*.json)\0*.json\0Tutti i file (*.*)\0*.*\0",
+            L"Piano NL Breath Click Studio (*.json)\0*.json\0Tutti i file (*.*)\0*.*\0",
             L"Esporta piano versionato", path)) {
         return;
     }
     if (!studio::writeEditPlanJson(path, plan, &error)) {
         MessageBoxW(window_, toWide("Piano non scritto:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     setStatusMessage("piano versionato esportato in " + path);
@@ -2964,18 +2964,18 @@ void EditorWindow::commandApplyPreview() {
         std::filesystem::u8path(path), pathError).lexically_normal();
     if (!pathError && sourceAbs == outputAbs) {
         MessageBoxW(window_, L"Il file di uscita non puo' essere l'originale.",
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     const std::wstring summary = toWide(globalEditSummary(false));
-    if (MessageBoxW(window_, summary.c_str(), L"BreathClick Studio - riepilogo",
+    if (MessageBoxW(window_, summary.c_str(), L"NL Breath Click Studio - riepilogo",
                     MB_YESNO | MB_ICONQUESTION) != IDYES) {
         return;
     }
     std::string error;
     if (!exportActiveTrackTo(path, &error)) {
         MessageBoxW(window_, toWide("Esportazione non riuscita:\n\n" + error).c_str(),
-                    L"BreathClick Studio", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         return;
     }
     setStatusMessage("piano applicato ed esportato in " + path);
@@ -3067,7 +3067,7 @@ void EditorWindow::commandExportDataset() {
             L"Nessuna correzione registrata.\n\n"
             L"Si registrano quando cancelli una regione o ne cambi il tipo: "
             L"sono il segnale che il rilevatore ha sbagliato.",
-            L"BreathClick", MB_OK | MB_ICONINFORMATION);
+            L"NL Breath Click Studio", MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -3085,7 +3085,7 @@ void EditorWindow::commandExportDataset() {
     std::string error;
     if (!document_.exportCorrections(percorso, &error)) {
         MessageBoxW(window_, toWide("Esportazione non riuscita:\n\n" + error).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         setStatusMessage("esportazione non riuscita: " + error);
         return;
     }
@@ -3121,7 +3121,7 @@ void EditorWindow::commandImportAiRegions() {
     std::string errore;
     if (!readAiRegions(utf8, &importate, &errore)) {
         MessageBoxW(window_, toWide("Regioni non leggibili:\n\n" + errore).c_str(),
-                    L"BreathClick", MB_OK | MB_ICONERROR);
+                    L"NL Breath Click Studio", MB_OK | MB_ICONERROR);
         setStatusMessage("importazione non riuscita: " + errore);
         return;
     }
@@ -3148,7 +3148,7 @@ void EditorWindow::commandImportAiRegions() {
                                " Hz, ma il file aperto e' a " +
                                std::to_string(static_cast<int>(sr)) +
                                " Hz.\n\nRiaprire il file originale.").c_str(),
-                        L"BreathClick", MB_OK | MB_ICONWARNING);
+                        L"NL Breath Click Studio", MB_OK | MB_ICONWARNING);
             setStatusMessage("frequenza diversa: regioni non importate");
             return;
         }
@@ -3438,20 +3438,12 @@ void EditorWindow::commandShowShortcuts() {
         L"  AIUTO\n"
         L"    F1 ......................... questa legenda\n";
 
-    MessageBoxW(window_, testo, L"BreathClick - tasti e scorciatoie",
+    MessageBoxW(window_, testo, L"NL Breath Click Studio - tasti e scorciatoie",
                 MB_OK | MB_ICONINFORMATION);
 }
 
 void EditorWindow::commandAbout() {
-    MessageBoxW(window_,
-                L"BreathClick Studio " BC_STUDIO_VERSION_W L"\n\n"
-                L"Editor per la rimozione di respiri e click dal voice over.\n\n"
-                L"L'audio originale non viene mai modificato: le correzioni\n"
-                L"si applicano su una copia e ogni operazione e' annullabile.\n\n"
-                L"Rilevamento: DSP, modello lineare o rete neurale. Il modello si\n"
-        L"sceglie dal menu Modello; una rete installata in models/ si usa\n"
-        L"senza ricompilare. Nessun Python a runtime.",
-                L"Informazioni su BreathClick", MB_OK | MB_ICONINFORMATION);
+    showAboutDialog(window_);
 }
 
 // ===========================================================================

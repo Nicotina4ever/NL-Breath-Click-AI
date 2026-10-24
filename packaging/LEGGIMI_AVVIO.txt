@@ -1,4 +1,4 @@
-BreathClick Studio 1.0.0-rc.2 — avvio rapido
+NL Breath Click Studio 1.0.0-rc.2 — avvio rapido
 
 1. Estrarre lo ZIP in una cartella scrivibile.
 2. Avviare: bc_studio.exe
@@ -28,3 +28,6 @@ Licenze e attribuzioni: THIRD_PARTY_NOTICES.md e LICENSES/.
 
 Versione 1.0.0-rc.2 — release candidata, non ancora validata su macchina
 pulita ne' su materiale professionale reale.
+
+Nicola Lanci Voice Over - info@nicolalanci.com - www.nicolalanci.com
+Versione e contatti: menu Aiuto > Informazioni.

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MPL-2.0
-"""Test riproducibili della pipeline BreathClick Studio (senza REAPER).
+"""Test riproducibili della pipeline NL Breath Click Studio (senza REAPER).
 
 Genera varianti PCM/float mono/stereo di un WAV sintetico con respiri noti,
 le elabora con bc_studio_cli e verifica formato, durata, attenuazione e hash

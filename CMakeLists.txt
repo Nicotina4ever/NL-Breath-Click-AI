@@ -38,13 +38,13 @@ option(BC_REQUIRE_RELEASE_TESTS "Richiedi tutte le dipendenze dei test di releas
 #  Opzioni
 # ============================================================================
 # ---------------------------------------------------------------------------
-#  Componenti attivi di BreathClick Studio.
+#  Componenti attivi di NL Breath Click Studio.
 #  VST3 ed estensione C++ REAPER non fanno parte della build corrente:
 #  REAPER usa script Lua e il bridge CLI, senza un'estensione nativa.
 # ---------------------------------------------------------------------------
 option(BC_BUILD_CLI       "Compila la CLI offline e le utilita' di test" ON)
 option(BC_BUILD_EDITOR    "Compila la GUI/editor condivisa"             ON)
-option(BC_BUILD_STUDIO    "Compila BreathClick Studio"                 ON)
+option(BC_BUILD_STUDIO    "Compila NL Breath Click Studio"                 ON)
 option(BC_BUILD_TESTS     "Compila i test"                              ON)
 option(BC_BUILD_REAPER_TESTS "Verifica adapter REAPER con mock Lua e bridge audio" ON)
 

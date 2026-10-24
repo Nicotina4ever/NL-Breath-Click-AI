@@ -1,4 +1,4 @@
-# BreathClick Studio
+# NL Breath Click Studio
 
 Editor audio offline Windows e integrazione REAPER per respiri e click nel
 doppiaggio e nello speakeraggio. Standalone **1.0.0-rc.2**, REAPER **0.2 preview**.
@@ -66,3 +66,10 @@ GUI e adapter REAPER rimangono separati; il motore non dipende da REAPER.
 Audio privato, dataset, pesi personali, modelli ONNX, output, cache e runtime
 REAPER sono esclusi dal sorgente pubblico. Storia locale di sviluppo e ramo
 destinato a GitHub rimangono separati.
+
+## Autore e contatti
+
+**Nicola Lanci Voice Over** · [info@nicolalanci.com](mailto:info@nicolalanci.com) ·
+[www.nicolalanci.com](https://www.nicolalanci.com).
+Versione e contatti sono disponibili in **Aiuto > Informazioni** nella
+standalone e nel pulsante **Informazioni** del pannello REAPER.

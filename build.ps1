@@ -1,6 +1,6 @@
 ﻿# SPDX-License-Identifier: MPL-2.0
 # ============================================================================
-#  build.ps1 — BreathClick Studio (Windows x64)
+#  build.ps1 — NL Breath Click Studio (Windows x64)
 #
 #  .\build.ps1                 configura e compila Release
 #  .\build.ps1 -Test           compila ed esegue CTest
@@ -38,7 +38,7 @@ if (-not $cmake) {
     throw 'CMake non trovato: usare il toolchain locale o installare CMake.'
 }
 
-Write-Host "BreathClick Studio — build $Config" -ForegroundColor Cyan
+Write-Host "NL Breath Click Studio — build $Config" -ForegroundColor Cyan
 Write-Host "Radice: $root"
 
 if ($Clean -and (Test-Path -LiteralPath (Join-Path $build 'CMakeCache.txt'))) {

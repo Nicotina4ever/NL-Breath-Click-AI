@@ -3,3 +3,9 @@
 #define BC_STUDIO_VERSION "@BC_STUDIO_VERSION@"
 #define BC_STUDIO_VERSION_W L"@BC_STUDIO_VERSION@"
 #define BC_FILE_VERSION 1,0,0,2
+
+#define BC_PRODUCT_NAME "NL Breath Click Studio"
+#define BC_PRODUCT_NAME_W L"NL Breath Click Studio"
+#define BC_AUTHOR_W L"Nicola Lanci Voice Over"
+#define BC_EMAIL_W L"info@nicolalanci.com"
+#define BC_WEBSITE_W L"www.nicolalanci.com"

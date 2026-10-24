@@ -51,5 +51,5 @@ public class BcsPreviewWindow {
     [ordered]@{pid=$child.Id;project=$project;resource=$portable;started=(Get-Date -Format o)} |
         ConvertTo-Json | Set-Content -LiteralPath (Join-Path $sandbox 'preview_process.json') -Encoding UTF8
     Write-Host ('REAPER preview, PID '+$child.Id+'. Resource: '+$portable)
-    Write-Host 'Pannello: BreathClick Studio. Progetto e media sono copie sintetiche sacrificabili.'
+    Write-Host 'Pannello: NL Breath Click Studio. Progetto e media sono copie sintetiche sacrificabili.'
 } finally {$gate.ReleaseMutex();$gate.Dispose()}

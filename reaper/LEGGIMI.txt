@@ -1,7 +1,7 @@
-BREATHCLICK STUDIO - REAPER EDITING DIRETTO (0.2 preview)
+NL BREATH CLICK STUDIO - REAPER EDITING DIRETTO (0.2 preview)
 ======================================================
 
-Apri Apri_BreathClick_Prova.cmd: sempre UNA portable e UN profilo dedicati in
+Apri Apri_NL_Breath_Click_Studio.cmd: sempre UNA portable e UN profilo dedicati in
 build/reaper_sandbox/portable. Nessun deploy nell'installazione professionale,
 nessun modello duplicato, nessuna dipendenza ReaImGui/SWS.
 
@@ -54,3 +54,7 @@ con protocollo direct_editing=2, non quella della vecchia RC2/preview.
 
 Stato, checkpoint, test e prossima prova: docs/REAPER_PROGRESS.md.
 La demo sintetica contiene una sola traccia/take e nessuna etichetta di training.
+
+Informazioni: versione, Nicola Lanci Voice Over, info@nicolalanci.com,
+www.nicolalanci.com. Sito web ed Email aprono le applicazioni predefinite;
+Esc torna al pannello senza cambiare la selezione o il progetto.
