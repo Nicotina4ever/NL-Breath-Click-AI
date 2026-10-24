@@ -1,0 +1,24 @@
+<?xml version='1.0' encoding='utf-8'?>
+<index version="1" name="NL Audio Tools">
+  <category name="Breath Click Studio">
+    <reapack name="NL Breath Click Studio.lua" type="script" desc="NL Breath Click Studio - REAPER Windows Beta">
+      <version name="1.0.0-rc.2" author="Nicola Lanci Voice Over" time="2026-10-24T22:53:38Z">
+        <changelog>First independent Windows beta. Verified backend installed on first use; no standalone or REAPER copy required.</changelog>
+        <source file="BreathClickStudio.lua" platform="win64" hash="1220ceab5860051a6caae279771acf58ef8765143f19497aeedae869272da26ecfa2" main="main">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/BreathClickStudio.lua</source>
+        <source file="bc_studio_bridge.lua" platform="win64" hash="12207e53b5513c59477c0f2c85a1e34198742d0920bce5c215323de0d83c50b1dd6b">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_studio_bridge.lua</source>
+        <source file="bc_direct.lua" platform="win64" hash="122003706f5b44c616c52f176cf0f9d53e27ee07ac48804355642bffcb0439eb6a34">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_direct.lua</source>
+        <source file="bc_direct_view.lua" platform="win64" hash="1220c05c1d4aaa504f09324573a13f6cfef67f1ab4aca0456ba7fb163c5f2cfdd03d">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_direct_view.lua</source>
+        <source file="bcnext_core.lua" platform="win64" hash="12201ebf9522219935b9cc24280927fb62c7b00b82ff94170eb8ca1a0ca2fa7c6d5c">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bcnext_core.lua</source>
+        <source file="BreathClickNext_config.lua" platform="win64" hash="1220df2e75b3cecb5eda259584d80e24b3c3a6a0ae927c321a260ecd05e7d1387856">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/BreathClickNext_config.lua</source>
+        <source file="bc_json.lua" platform="win64" hash="1220b2ea7f1c720120e6a6e4d512fde7b95d7ffbf0b9a2691ff513c34d2fd180a52a">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_json.lua</source>
+        <source file="bc_job.ps1" platform="win64" hash="122080e4c9a7e56cfe56e97693c3594c9784b614c9de85a079e7fee6162651c02680">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_job.ps1</source>
+        <source file="bc_runtime.lua" platform="win64" hash="12205840b4b81552b021ca72d1e69293646c147f9811971440a665b01a1faa66b84c">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_runtime.lua</source>
+        <source file="bc_runtime.ps1" platform="win64" hash="122009ef54ab880ad7848ce63efe3bffc15da067be7ef26cbd9953d9d5a5dec808f7">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/bc_runtime.ps1</source>
+        <source file="LEGGIMI.txt" platform="win64" hash="122015b059de9b6a6be8771b37dd5aef0984075d62bb014c70684809e1050c85896f">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/reaper/LEGGIMI.txt</source>
+        <source file="runtime-release.json" platform="win64" hash="122026fd0fd10457941ffcb0adeca8b0635b987b4e1d004dd22b14391404d21e5c3a">https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/download/v1.0.0-rc.2/runtime-release.json</source>
+        <source file="LICENSE" platform="win64" hash="12203f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/LICENSE</source>
+        <source file="THIRD_PARTY_NOTICES.md" platform="win64" hash="122022889b23b09b84b47cefb5ae6c3e045c7e8597469c506cff504e5c744575086e">https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/2a4bd436af2b8e9ccf4b66883e53b75289afb389/THIRD_PARTY_NOTICES.md</source>
+      </version>
+    </reapack>
+  </category>
+</index>
