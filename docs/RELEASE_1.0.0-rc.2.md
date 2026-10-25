@@ -2,6 +2,8 @@
 
 [Italiano](#italiano) · [English](#english)
 
+**[Segnala un problema / Suggerisci una funzione · Report a problem / Suggest a feature](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues/new)**
+
 ## Italiano
 
 Prima pre-release per **Windows 10/11 a 64 bit**, dedicata all'editing dei

@@ -10,6 +10,10 @@
 - **[Download REAPER Windows Beta](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/download/v1.0.0-rc.2/NL_Breath_Click_Studio_REAPER_Windows_Beta_1.0.0-rc.2.zip)** — work inside REAPER.
 - [Release notes and checksums](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/tag/v1.0.0-rc.2)
 
+**[Report a problem / Suggest a feature](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues/new)**
+
+No technical knowledge needed: tell us what you were doing and what you would like to achieve.
+
 ## A helping hand for voice editing
 
 NL Breath Click Studio is a free, open source tool for voice actors,
@@ -31,9 +35,9 @@ needs; listening remains part of the process.
 | Result | Export new WAV or MP3 files | Apply edits to the selected take |
 | Requires the other version? | No | No; REAPER itself is required and is not included |
 
-**The two distributions work independently.** Each ZIP includes its own
-engine, models and required components. You do not need Python.
-With ReaPack, the engine is downloaded and installed on first use.
+**The two distributions work independently.** Each ZIP includes everything
+it needs to run. You do not need Python.
+With ReaPack, the audio processing components are downloaded on first use.
 
 ## Available in RC2
 

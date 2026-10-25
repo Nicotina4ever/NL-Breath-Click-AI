@@ -2,6 +2,8 @@
 
 [Presentazione e download](../README.md) · [English quick start](../README.en.md#get-started) · [Guida REAPER](REAPER_GUIDE.md)
 
+**[Segnala un problema / Suggerisci una funzione](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues/new)**
+
 ## Aprire le registrazioni
 
 Estrai tutto lo ZIP Standalone in una cartella scrivibile e avvia

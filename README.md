@@ -10,6 +10,10 @@
 - **[Scarica REAPER Windows Beta](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/download/v1.0.0-rc.2/NL_Breath_Click_Studio_REAPER_Windows_Beta_1.0.0-rc.2.zip)** — per lavorare dentro REAPER.
 - [Pagina della release, note e checksum](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/tag/v1.0.0-rc.2)
 
+**[Segnala un problema / Suggerisci una funzione](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues/new)**
+
+Non servono competenze tecniche: racconta cosa stavi facendo e cosa vorresti ottenere.
+
 ## Un aiuto per l'editing della voce
 
 NL Breath Click Studio è un programma gratuito e open source per doppiatori,
@@ -31,9 +35,9 @@ dalla registrazione e dalla revisione necessaria: l'ascolto resta parte del lavo
 | Risultato | Esporti nuovi file WAV o MP3 | Applichi gli interventi alla take selezionata |
 | Serve l'altra versione? | No | No; serve REAPER, che non è incluso |
 
-**Le due distribuzioni sono indipendenti.** Ciascuno ZIP contiene il proprio
-motore, i modelli e i componenti necessari. Non occorre installare Python.
-Con ReaPack il motore viene scaricato e installato al primo utilizzo.
+**Le due distribuzioni sono indipendenti.** Ciascuno ZIP contiene tutto il
+necessario per funzionare. Non occorre installare Python.
+Con ReaPack i componenti per elaborare l'audio vengono scaricati al primo utilizzo.
 
 ## Cosa puoi fare nella RC2
 

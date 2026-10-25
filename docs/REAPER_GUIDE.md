@@ -2,6 +2,8 @@
 
 [Presentazione e download](../README.md) · [Standalone](USER_GUIDE.md) · [English quick start](#english-quick-start)
 
+**[Segnala un problema / Suggerisci una funzione](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues/new)**
+
 L'integrazione permette di rivedere e trattare i respiri direttamente nel
 progetto REAPER. Ogni intervento si applica alla stessa take, senza creare
 tracce duplicate permanenti. I file audio originali sul disco restano intatti.
