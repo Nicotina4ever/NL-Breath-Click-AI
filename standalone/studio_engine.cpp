@@ -130,13 +130,13 @@ Event eventFromRegion(const EditRegion& r) {
     e.kind = r.kind; e.startSample = r.startSample; e.endSample = r.endSample;
     e.score = r.score; e.reductionDb = r.reductionDb; e.repair = r.repair;
     e.enabled = r.enabled; e.approved = r.approved;
-    e.state = r.learningLabel == "false_positive" ? "rejected" :
-        (r.learningLabel == "breath_confirmed" || r.learningLabel == "missed_breath") ? "confirmed" :
+    e.state = (r.learningLabel == "false_positive" || r.learningLabel == "click_false_positive" || r.learningLabel == "vocal_transient") ? "rejected" :
+        (r.learningLabel == "breath_confirmed" || r.learningLabel == "missed_breath" || r.learningLabel == "click_confirmed" || r.learningLabel == "missed_click" || r.learningLabel == "mouth_click_confirmed") ? "confirmed" :
         (!r.enabled || !r.approved) ? "excluded" : r.fromDetection ? "proposed" : "manual";
     e.mode = static_cast<EditMode>(std::clamp(r.editMode, 0, 3));
     e.keepFraction = r.keepFraction; e.fadeMs = r.fadeMs; e.safetyMarginMs = r.safetyMarginMs;
     e.decisionSource = r.decisionSource; e.classification = r.classification.empty() && !r.fromDetection ? "manual" : r.classification;
-    e.trainingEligible = r.trainingEligible; e.learningLabel = r.learningLabel;
+    e.trainingEligible = r.trainingEligible; e.learningLabel = r.learningLabel; e.repairMethod = r.repairMethod;
     e.source = e.classification; e.reason = r.reason;
     e.dspScore = r.dspScore; e.aiScore = r.aiScore; e.aiMaxProbability = r.aiMaxProbability;
     e.manualOperation = r.manualOperation;
@@ -323,17 +323,24 @@ bool analyzeFile(const std::string& path, const Settings& settings,
         return std::make_pair(start, end);
     };
 
+    const bool breaths = settings.dspSettings ? settings.dspSettings->detectBreath : settings.detectBreath;
+    const bool clicks = settings.dspSettings ? settings.dspSettings->detectClicks : settings.detectClicks;
+    if (!breaths && !clicks) { if (error) *error = "Seleziona Rileva respiri oppure Rileva click"; return false; }
     std::vector<Event> dspEvents, clickEvents;
-    if (detectorMode == "dsp" || detectorMode == "fusion") {
+    if ((breaths && (detectorMode == "dsp" || detectorMode == "fusion")) || clicks) {
         DetectorSettings detector;
         if (settings.dspSettings) detector = *settings.dspSettings;
         else {
-            detector.detectBreath = true;
-            detector.detectClicks = settings.detectClicks;
+            detector.detectBreath = breaths;
+            detector.detectClicks = clicks;
+            detector.clickSensitivity = settings.clickSensitivity;
+            detector.clickThreshold = settings.clickThreshold;
             detector.breathSensitivity = settings.sensitivity;
             detector.breathThreshold = settings.threshold;
         }
 
+        detector.detectBreath = breaths && detectorMode != "ai";
+        detector.detectClicks = clicks;
         OfflineAnalyzer analyzer;
         const AnalysisResult result = analyzer.analyze(
             mono.data(), mono.size(), static_cast<double>(buffer.sampleRate), detector);
@@ -347,6 +354,7 @@ bool analyzeFile(const std::string& path, const Settings& settings,
                 static_cast<double>(detection.startSample) - preFrames));
             int64_t end = static_cast<int64_t>(std::llround(
                 static_cast<double>(detection.endSample) + postFrames));
+            if (detection.kind == DetectionKind::Click) { start = detection.startSample; end = detection.endSample; }
             auto bounds = clampEvent(start, end);
             if (bounds.second - bounds.first < (detection.kind == DetectionKind::Click ? 1 :
                 static_cast<int64_t>(buffer.sampleRate * 0.02))) {
@@ -362,6 +370,8 @@ bool analyzeFile(const std::string& path, const Settings& settings,
             event.state = "proposed";
             event.source = "dsp";
             event.dspScore = detection.peakScore;
+            event.classification = detection.classification;
+            event.reason = detection.reason;
             if (event.kind == DetectionKind::Click) clickEvents.push_back(event);
             else dspEvents.push_back(event);
         }
@@ -369,7 +379,7 @@ bool analyzeFile(const std::string& path, const Settings& settings,
 
     std::vector<Event> aiEvents;
     std::vector<float> aiProbabilities;
-    if (detectorMode == "ai" || detectorMode == "fusion") {
+    if (breaths && (detectorMode == "ai" || detectorMode == "fusion")) {
         std::vector<AiEvent> detected;
         std::string aiError;
         if (!respiroEnDetect(mono, buffer.sampleRate, settings.modelPath,
@@ -501,6 +511,19 @@ bool analyzeFile(const std::string& path, const Settings& settings,
         analysis->events.end());
 
     return true;
+}
+
+AudioBuffer removedSignal(const AudioBuffer& original,const EditResult& edited) {
+    AudioBuffer residual=original;
+    for(int64_t frame=0;frame<original.frameCount();++frame){
+        bool removed=false;const auto mapped=edited.map.mapOriginal(frame,&removed);
+        for(int c=0;c<original.channels;++c){
+            const auto index=static_cast<size_t>(frame*original.channels+c);
+            if(!removed && mapped>=0 && mapped<edited.audio.frameCount())
+                residual.samples[index]-=edited.audio.samples[static_cast<size_t>(mapped*original.channels+c)];
+        }
+    }
+    return residual;
 }
 
 namespace {
@@ -662,6 +685,7 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     result->crossfadeFrames = 0;
     result->appliedEvents = 0;
     result->rejectedEvents = 0;
+    result->declinedEvents = 0;
     result->markerScope = plan.markerScope.empty() ? "voice" : plan.markerScope;
     result->voiceMappedMarkers.clear();
     result->projectMappedMarkers.clear();
@@ -669,6 +693,13 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     std::vector<Event> approved;
     for (const Event& event : plan.events) {
         if (!event.enabled || !event.approved) continue;
+        if(event.repair && event.kind==DetectionKind::Click &&
+           (event.repairMethod!="auto" && event.repairMethod!="linear" && event.repairMethod!="predictive")) {
+            if(error)*error="Algoritmo de-click non riconosciuto";return false;
+        }
+        if(event.repair && event.kind==DetectionKind::Click && event.endSample-event.startSample>original.sampleRate*.045) {
+            if(error)*error="Regione de-click oltre 45 ms: correggi i confini prima di riparare";return false;
+        }
         if (event.startSample < 0 || event.endSample > original.frameCount() ||
             event.endSample <= event.startSample) {
             EditOperationResult rejected;
@@ -693,6 +724,10 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     // Tagli e dimezzamenti: si applicano da destra a sinistra.
     std::vector<Event> timeEvents;
     for (const Event& event : approved) {
+        if (event.kind == DetectionKind::Click && (event.mode == EditMode::Cut || event.mode == EditMode::Halve)) {
+            if (error) *error = "I click non accorciano la durata: usa Ripara click o Silenzia";
+            return false;
+        }
         if (event.mode == EditMode::Cut || event.mode == EditMode::Halve) timeEvents.push_back(event);
     }
     std::sort(timeEvents.begin(), timeEvents.end(),
@@ -893,6 +928,7 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
             operation.endSample = mapped.endSample;
             operation.reductionDb = reduction;
             operation.repair = true;
+            operation.repairMethod = event.repairMethod;
             repairs.push_back(operation);
         } else applyEventGain(result->audio, mapped, reduction, &gainCurve);
         EditOperationResult operation;
@@ -907,8 +943,12 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     std::sort(repairs.begin(), repairs.end(), [](const auto& a, const auto& b) { return a.startSample < b.startSample; });
     std::vector<RegionOperation> mergedRepairs;
     for (const auto& repair : repairs) {
-        if (!mergedRepairs.empty() && repair.startSample <= mergedRepairs.back().endSample)
+        if (!mergedRepairs.empty() && repair.startSample <= mergedRepairs.back().endSample) {
+            if(repair.repairMethod!=mergedRepairs.back().repairMethod) {
+                if(error)*error="Click sovrapposti con algoritmi diversi: uniforma la scelta";return false;
+            }
             mergedRepairs.back().endSample = std::max(mergedRepairs.back().endSample, repair.endSample);
+        }
         else mergedRepairs.push_back(repair);
     }
     EditSettings repairSettings;
@@ -916,11 +956,26 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     // Lunghe catene di click non diventano un'interpolazione di parlato.
     for (const auto& repair : mergedRepairs) {
         if (repair.endSample - repair.startSample > original.sampleRate * EditSettings{}.repairMaxMs / 1000.0) {
-            Event mapped; mapped.startSample = repair.startSample; mapped.endSample = repair.endSample;
-            mapped.fadeMs = plan.settings.fadeMs;
-            applyEventGain(result->audio, mapped, repair.reductionDb, &gainCurve);
-        } else RegionEditor::applyOperations(result->audio.samples, original.channels,
-                    original.sampleRate, {repair}, repairSettings);
+            if(error)*error="Click sovrapposti oltre 45 ms: rivedere i confini";
+            return false;
+        }
+    }
+    const auto repaired=RegionEditor::applyOperations(result->audio.samples, original.channels,
+                original.sampleRate, mergedRepairs, repairSettings);
+    if(repaired.clickRegionsSkipped) {
+        if(error)*error="Contesto insufficiente per la ricostruzione: correggi i confini o scegli Lineare esplicitamente";
+        return false;
+    }
+    for(auto& op:result->operations) {
+        if(op.event.kind!=DetectionKind::Click||!op.event.repair||!op.applied)continue;
+        const auto end=result->map.mapOriginal(op.event.endSample);
+        for(const auto& declined:repaired.declinedClicks) {
+            if(op.editedStart<declined.endSample && end>declined.startSample) {
+                op.applied=false;op.declined=true;
+                op.note="De-click automatico rinunciato: contesto non prevedibile; originale conservato, confronta le alternative in anteprima";
+                --result->appliedEvents;++result->declinedEvents;break;
+            }
+        }
     }
     for (int64_t frame = 0; frame < outputFrames; ++frame)
         for (int ch = 0; ch < original.channels; ++ch)
@@ -971,55 +1026,11 @@ bool applyEditPlan(const AudioBuffer& original, const EditPlan& plan,
     return true;
 }
 
-void applyAttenuation(AudioBuffer& audio, const std::vector<Event>& events,
-                      const Settings& settings) {
-    if (audio.empty() || audio.channels <= 0) return;
-    const int64_t frames = audio.frameCount();
-    const double sr = static_cast<double>(audio.sampleRate);
-    const int64_t fadeFrames = std::max<int64_t>(
-        1, static_cast<int64_t>(std::llround(settings.fadeMs * sr / 1000.0)));
-    const float factor = std::pow(10.0f, settings.reductionDb / 20.0f);
-
-    std::vector<float> gain(static_cast<size_t>(frames), 1.0f);
-
-    for (const Event& event : events) {
-        if (!event.enabled || !event.approved || event.mode != EditMode::Attenuate) continue;
-        int64_t start = std::max<int64_t>(0, event.startSample);
-        int64_t end = std::min<int64_t>(frames, event.endSample);
-        if (end <= start) continue;
-
-        const int64_t fadeIn = std::min<int64_t>(fadeFrames, start);
-        const int64_t fadeOut = std::min<int64_t>(fadeFrames, frames - end);
-
-        // Rampa di ingresso: da 1.0 a factor.
-        for (int64_t i = 0; i < fadeIn; ++i) {
-            const int64_t frame = start - fadeIn + i;
-            const double t = static_cast<double>(i + 1) / static_cast<double>(fadeIn);
-            const double ramp = 0.5 * (1.0 + std::cos(kPi * t)); // 1 -> 0
-            const float g = factor + (1.0f - factor) * static_cast<float>(ramp);
-            gain[static_cast<size_t>(frame)] = std::min(gain[static_cast<size_t>(frame)], g);
-        }
-        for (int64_t frame = start; frame < end; ++frame) {
-            gain[static_cast<size_t>(frame)] = std::min(gain[static_cast<size_t>(frame)], factor);
-        }
-        // Rampa di uscita: da factor a 1.0.
-        for (int64_t i = 0; i < fadeOut; ++i) {
-            const int64_t frame = end + i;
-            const double t = static_cast<double>(i) / static_cast<double>(fadeOut);
-            const double ramp = 0.5 * (1.0 - std::cos(kPi * t)); // 0 -> 1
-            const float g = factor + (1.0f - factor) * static_cast<float>(ramp);
-            gain[static_cast<size_t>(frame)] = std::min(gain[static_cast<size_t>(frame)], g);
-        }
-    }
-
-    for (int64_t frame = 0; frame < frames; ++frame) {
-        const float g = gain[static_cast<size_t>(frame)];
-        if (g >= 1.0f) continue;
-        for (int channel = 0; channel < audio.channels; ++channel) {
-            const size_t index = static_cast<size_t>(frame) * audio.channels + channel;
-            audio.samples[index] *= g;
-        }
-    }
+void applyAttenuation(AudioBuffer& audio,const std::vector<Event>& events,const Settings& settings) {
+    EditPlan plan;plan.sampleRate=audio.sampleRate;plan.channels=audio.channels;
+    plan.settings=settings;plan.events=events;
+    EditResult rendered;
+    if(applyEditPlan(audio,plan,&rendered,nullptr))audio=std::move(rendered.audio);
 }
 
 double rmsDb(const AudioBuffer& audio, int64_t startSample, int64_t endSample,
@@ -1079,9 +1090,13 @@ bool processFile(const std::string& inputPath,
         return false;
     }
 
-    for (Event& event : analysis.events) event.approved = true;
-    AudioBuffer processed = original;
-    applyAttenuation(processed, analysis.events, settings);
+    for (Event& event : analysis.events) event.approved = event.kind != DetectionKind::Click || !clickReviewRequired(event.classification);
+    EditPlan processingPlan;processingPlan.sampleRate=original.sampleRate;processingPlan.channels=original.channels;
+    processingPlan.settings=settings;processingPlan.events=analysis.events;
+    for(auto& event:processingPlan.events)event.fadeMs=settings.fadeMs;
+    EditResult rendered;
+    if(!applyEditPlan(original,processingPlan,&rendered,error))return false;
+    AudioBuffer processed=std::move(rendered.audio);
 
     const WavFormat format = chooseFormat(info);
     if (!writeWavWithMetadataAtomic(inputPath, outputFs.u8string(), processed, format, error,
@@ -1102,15 +1117,16 @@ bool processFile(const std::string& inputPath,
     // Concentra la misura nella parte centrale del respiro, lontana dalle
     // rampe: li' l'attenuazione deve essere quella nominale.
     for (const Event& event : analysis.events) {
-        if (!event.enabled) {
+        const bool declined=std::any_of(rendered.operations.begin(),rendered.operations.end(),[&](const auto& op){return op.declined&&op.event.startSample==event.startSample&&op.event.endSample==event.endSample;});
+        if (!event.enabled || !event.approved || declined) {
             ++report->skippedEvents;
             continue;
         }
         const int64_t length = event.endSample - event.startSample;
         if (length <= 0) continue;
         const int64_t margin = std::max<int64_t>(1, length / 4);
-        const int64_t start = event.startSample + margin;
-        const int64_t end = event.endSample - margin;
+        const int64_t start = length>2?event.startSample+margin:event.startSample;
+        const int64_t end = length>2?event.endSample-margin:event.endSample;
         if (end <= start) continue;
 
         EventMetric metric;
@@ -1131,7 +1147,7 @@ bool processFile(const std::string& inputPath,
     const int64_t fadeFrames = std::max<int64_t>(
         1, static_cast<int64_t>(std::llround(settings.fadeMs * original.sampleRate / 1000.0)));
     for (const Event& event : analysis.events) {
-        if (!event.enabled) continue;
+        if (!event.enabled || !event.approved) continue;
         const int64_t from = std::max<int64_t>(0, event.startSample - fadeFrames);
         const int64_t to = std::min<int64_t>(original.frameCount(), event.endSample + fadeFrames);
         for (int64_t frame = from; frame < to; ++frame) inside[static_cast<size_t>(frame)] = 1;
@@ -1717,6 +1733,9 @@ bool writeEditPlanJson(const std::string& path, const EditPlan& plan,
         << "  \"reduction_db\": " << plan.settings.reductionDb << ",\n"
         << "  \"fade_ms\": " << plan.settings.fadeMs << ",\n"
         << "  \"crossfade_ms\": " << plan.settings.crossfadeMs << ",\n"
+        << "  \"detect_breath\": " << (plan.settings.detectBreath?"true":"false") << ",\n"
+        << "  \"detect_clicks\": " << (plan.settings.detectClicks?"true":"false") << ",\n"
+        << "  \"click_sensitivity\": " << plan.settings.clickSensitivity << ",\n"
         << "  \"marker_scope\": \"" << jsonEscape(plan.markerScope) << "\",\n"
         << "  \"detector\": \"" << jsonEscape(plan.settings.detector) << "\",\n"
         << "  \"effective_detector\": \"" << jsonEscape(plan.analysis.detector.empty() ? "unknown_legacy" : plan.analysis.detector) << "\",\n"
@@ -1736,6 +1755,7 @@ bool writeEditPlanJson(const std::string& path, const EditPlan& plan,
             << ", \"classification\": \"" << jsonEscape(event.classification.empty() ? event.source : event.classification) << "\""
             << ", \"decision_source\": \"" << jsonEscape(event.decisionSource) << "\""
             << ", \"training_eligible\": " << (event.trainingEligible ? "true" : "false")
+            << ", \"repair_method\": \"" << jsonEscape(event.repairMethod) << "\""
             << ", \"learning_label\": \"" << jsonEscape(event.learningLabel) << "\""
             << ", \"manual_operation\": " << (event.manualOperation ? "true" : "false")
             << ", \"mode\": \"" << editModeName(event.mode) << "\""
@@ -1805,13 +1825,16 @@ bool writeEditReportJson(const std::string& path, const EditPlan& plan,
         << (static_cast<double>(result.removedSamples) / sr) << ",\n"
         << "  \"applied_events\": " << result.appliedEvents << ",\n"
         << "  \"rejected_events\": " << result.rejectedEvents << ",\n"
+        << "  \"declined_events\": " << result.declinedEvents << ",\n"
         << "  \"operations\": [\n";
     for (size_t i = 0; i < result.operations.size(); ++i) {
         const EditOperationResult& op = result.operations[i];
         out << "    {\"start\": " << op.event.startSample
+            << ", \"kind\": " << static_cast<int>(op.event.kind)
             << ", \"end\": " << op.event.endSample
             << ", \"mode\": \"" << editModeName(op.event.mode) << "\""
             << ", \"applied\": " << (op.applied ? "true" : "false")
+            << ", \"declined\": " << (op.declined ? "true" : "false")
             << ", \"edited_start\": " << op.editedStart
             << ", \"removed_samples\": " << op.removedSamples
             << ", \"safety_margin_samples\": " << op.safetyMarginSamples
@@ -1899,6 +1922,9 @@ bool loadEditPlanJson(const std::string& path, EditPlan* output,
     if (readObjectNumber(json, "crossfade_ms", number)) plan->settings.crossfadeMs = number;
     readObjectString(json, "marker_scope", plan->markerScope);
     readObjectString(json, "detector", plan->settings.detector);
+    readObjectBool(json, "detect_breath", plan->settings.detectBreath);
+    readObjectBool(json, "detect_clicks", plan->settings.detectClicks);
+    if(readObjectNumber(json,"click_sensitivity",number))plan->settings.clickSensitivity=static_cast<float>(number);
     readObjectString(json, "effective_detector", plan->analysis.detector);
     if (plan->analysis.detector == "unknown_legacy") plan->analysis.detector.clear();
     if (readObjectNumber(json, "ai_inference_frames", number)) plan->analysis.aiFrames = static_cast<int64_t>(number);
@@ -1925,6 +1951,7 @@ bool loadEditPlanJson(const std::string& path, EditPlan* output,
         readObjectString(object, "state", event.state);
         readObjectString(object, "classification", event.classification);
         readObjectString(object, "learning_label", event.learningLabel);
+        readObjectString(object, "repair_method", event.repairMethod);
         readObjectBool(object, "manual_operation", event.manualOperation);
         readObjectString(object, "decision_source", event.decisionSource);
         readObjectBool(object, "training_eligible", event.trainingEligible);
@@ -2090,6 +2117,7 @@ bool writeAnalysisJson(const std::string& path, const Analysis& analysis,
         out << "    {\"start_s\": " << std::setprecision(6)
             << static_cast<double>(e.startSample) / analysis.sampleRate
             << ", \"end_s\": " << static_cast<double>(e.endSample) / analysis.sampleRate
+            << ", \"kind\": " << static_cast<int>(e.kind)
             << ", \"score\": " << e.score
             << ", \"enabled\": " << (e.enabled ? "true" : "false")
             << ", \"state\": \"" << jsonEscape(e.state) << "\""

@@ -41,6 +41,7 @@ struct EditRegion {
 
     // Solo click: ripara per interpolazione invece di attenuare.
     bool repair = false;
+    std::string repairMethod = "auto";
 
     // Una regione disattivata resta visibile ma non viene applicata.
     bool enabled = true;

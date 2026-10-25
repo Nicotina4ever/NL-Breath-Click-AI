@@ -439,7 +439,10 @@ studio::Settings EditorWindow::makeStudioSettings() const {
     settings.postPadMs = editSettings_.postPadMs;
     settings.sensitivity = detectorSettings_.breathSensitivity;
     settings.threshold = detectorSettings_.breathThreshold;
+    settings.detectBreath = detectorSettings_.detectBreath;
     settings.detectClicks = detectorSettings_.detectClicks;
+    settings.clickSensitivity = detectorSettings_.clickSensitivity;
+    settings.clickThreshold = detectorSettings_.clickThreshold;
     settings.dspSettings = detectorSettings_;
     settings.detector = studioDetector_;
     settings.aiThreshold = aiThreshold_;
@@ -506,6 +509,7 @@ bool EditorWindow::applySessionTo(AudioDocument* doc,
             region.trainingEligible = event.trainingEligible;
             if (event.reductionDb) region.reductionDb = *event.reductionDb;
             region.repair = event.repair;
+            region.repairMethod = event.repairMethod;
             doc->updateRegion(static_cast<int>(i), region, false);
             break;
         }

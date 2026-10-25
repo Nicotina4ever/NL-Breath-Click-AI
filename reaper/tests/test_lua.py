@@ -53,7 +53,7 @@ assert panel.identity.name == 'NL Breath Click Studio'
 assert panel.identity.author == 'Nicola Lanci Voice Over'
 assert panel.identity.email == 'info@nicolalanci.com'
 assert panel.identity.website == 'www.nicolalanci.com'
-assert panel.identity.version == '1.0.0-rc.2'
+assert panel.identity.version == '1.0.0-rc.3'
 lua.globals()['panel'] = panel
 lua.execute("""
 local command

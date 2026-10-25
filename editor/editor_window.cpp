@@ -165,6 +165,7 @@ struct SettingsDialogState {
     HWND minClick = nullptr;
     HWND mergeGap = nullptr;
     HWND pauseGate = nullptr;
+    HWND detectBreath = nullptr, detectClicks = nullptr;
     HWND device = nullptr;
     HWND breathValue = nullptr;
     HWND clickValue = nullptr;
@@ -201,6 +202,8 @@ void setControlFont(HWND control, HFONT font) {
 DetectorSettings readControls(SettingsDialogState& state) {
     DetectorSettings settings = state.settings ? *state.settings : DetectorSettings{};
     if (state.breathThreshold) {
+        settings.detectBreath = SendMessageW(state.detectBreath,BM_GETCHECK,0,0)==BST_CHECKED;
+        settings.detectClicks = SendMessageW(state.detectClicks,BM_GETCHECK,0,0)==BST_CHECKED;
         settings.breathThreshold =
             static_cast<float>(SendMessageW(state.breathThreshold, TBM_GETPOS, 0, 0)) /
             kSliderResolution;
@@ -306,6 +309,8 @@ void setSlidersFromSettings(SettingsDialogState& state, const DetectorSettings& 
                  static_cast<LPARAM>(std::max(1, std::min(20, settings.minClickMs))));
     SendMessageW(state.mergeGap, TBM_SETPOS, TRUE,
                  static_cast<LPARAM>(std::max(0, std::min(200, settings.mergeGapMs))));
+    SendMessageW(state.detectBreath,BM_SETCHECK,settings.detectBreath?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(state.detectClicks,BM_SETCHECK,settings.detectClicks?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(state.pauseGate, BM_SETCHECK,
                  settings.requirePauseForBreath ? BST_CHECKED : BST_UNCHECKED, 0);
     updateSettingsLabels(state);
@@ -656,6 +661,14 @@ bool showSettingsDialog(HWND parent, DetectorSettings& settings,
     addLabel(L"Anteprima DSP: Dopo applica l'attenuazione e la riparazione click correnti.",
              470, 540, 450, 40);
 
+    state.detectBreath=CreateWindowExW(0,L"BUTTON",L"Rileva respiri",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        470,555,200,24,dialog,reinterpret_cast<HMENU>(3060),nullptr,nullptr);
+    state.detectClicks=CreateWindowExW(0,L"BUTTON",L"Rileva click / bocca",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        690,555,220,24,dialog,reinterpret_cast<HMENU>(3061),nullptr,nullptr);
+    SendMessageW(state.detectBreath,BM_SETCHECK,settings.detectBreath?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(state.detectClicks,BM_SETCHECK,settings.detectClicks?BST_CHECKED:BST_UNCHECKED,0);
+    setControlFont(state.detectBreath,state.font);setControlFont(state.detectClicks,state.font);
+
     const int buttonY = 618;
     auto addButton = [&](int id, const wchar_t* text, int x0, int w0) {
         HWND button = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -994,6 +1007,7 @@ void EditorWindow::createMenus() {
         {MF_STRING, EditorCommand::kStudioDetectorFusion, L"Metodo: fusione DSP + AI (sperimentale)"},
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kStudioPreview, L"Anteprima del risultato"},
+        {MF_STRING, EditorCommand::kPreviewResidual, L"Ascolta solo rimosso (differenza)"},
         {MF_STRING, EditorCommand::kStudioApply, L"Applica ed esporta il risultato..."},
         {MF_STRING, EditorCommand::kStudioExportPlan, L"Esporta piano versionato..."},
         {MF_SEPARATOR, 0, nullptr},
@@ -1034,7 +1048,10 @@ void EditorWindow::createMenus() {
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kRegionSetBreath, L"Tipo: respiro"},
         {MF_STRING, EditorCommand::kRegionSetClick, L"Tipo: click"},
-        {MF_STRING, EditorCommand::kRegionRepairToggle, L"Ripara il click per interpolazione"},
+        {MF_STRING, EditorCommand::kRegionRepairToggle, L"Ripara click / attenua"},
+        {MF_STRING, EditorCommand::kClickRepairAuto, L"De-click: automatico"},
+        {MF_STRING, EditorCommand::kClickRepairLinear, L"De-click: interpolazione lineare"},
+        {MF_STRING, EditorCommand::kClickRepairPredictive, L"De-click: ricostruzione predittiva"},
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kRegionGainDown, L"Attenua di piu' (3 dB)"},
         {MF_STRING, EditorCommand::kRegionGainUp, L"Attenua di meno (3 dB)"},
@@ -1068,6 +1085,11 @@ void EditorWindow::createMenus() {
         {MF_STRING, EditorCommand::kLearningMissedBreath, L"Segna come respiro mancato confermato"},
         {MF_STRING, EditorCommand::kLearningFalsePositive, L"Segna come falso positivo confermato"},
         {MF_STRING, EditorCommand::kLearningEditorialExclusion, L"Segna esclusione editoriale (non training)"},
+        {MF_STRING, EditorCommand::kLearningClickConfirmed, L"Conferma click"},
+        {MF_STRING, EditorCommand::kLearningClickFalsePositive, L"Falso positivo click"},
+        {MF_STRING, EditorCommand::kLearningMissedClick, L"Click mancato (regione manuale)"},
+        {MF_STRING, EditorCommand::kLearningMouthConfirmed, L"Conferma schiocco saliva/labbra"},
+        {MF_STRING, EditorCommand::kLearningVocalTransient, L"Transiente vocale da preservare"},
         {MF_STRING, EditorCommand::kLearningUnverified, L"Riporta a non verificato"},
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kLearningTrain, L"Impara dalle correzioni..."},
@@ -1316,6 +1338,10 @@ LRESULT EditorWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         case WM_APP + 323: {
             const size_t i = static_cast<size_t>(wParam) * document_.channels();
             return i < document_.audio().samples.size() ? static_cast<LRESULT>(std::llround(document_.audio().samples[i] * 1000000.)) : 0;
+        }
+        case WM_APP + 325: {
+            const auto index=static_cast<size_t>(wParam);
+            return index<document_.regions().size()?static_cast<LRESULT>(document_.regions()[index].kind):-1;
         }
         case WM_APP + 324: return static_cast<LRESULT>(std::llround(player_.sampleAt(static_cast<int64_t>(wParam)) * 1000000.));
         default: break;
@@ -1840,6 +1866,11 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kGoToSelectedRegion: commandGoToSelectedRegion(); break;
         case EditorCommand::kViewVerticalReset: commandVerticalZoomReset(); break;
         case EditorCommand::kViewFollowPlayhead: commandToggleFollowPlayhead(); break;
+        case EditorCommand::kLearningClickConfirmed: commandLearningLabel(LearningLabel::ClickConfirmed); break;
+        case EditorCommand::kLearningClickFalsePositive: commandLearningLabel(LearningLabel::ClickFalsePositive); break;
+        case EditorCommand::kLearningMissedClick: commandLearningLabel(LearningLabel::MissedClick); break;
+        case EditorCommand::kLearningMouthConfirmed: commandLearningLabel(LearningLabel::MouthClickConfirmed); break;
+        case EditorCommand::kLearningVocalTransient: commandLearningLabel(LearningLabel::VocalTransient); break;
         case EditorCommand::kLearningConfirmBreath:
             commandLearningLabel(LearningLabel::BreathConfirmed); break;
         case EditorCommand::kLearningFalsePositive:
@@ -1888,6 +1919,34 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kStudioDetectorDsp: commandDetectorMode("dsp"); break;
         case EditorCommand::kStudioDetectorAi: commandDetectorMode("ai"); break;
         case EditorCommand::kStudioDetectorFusion: commandDetectorMode("fusion"); break;
+        case EditorCommand::kClickRepairAuto:
+        case EditorCommand::kClickRepairLinear:
+        case EditorCommand::kClickRepairPredictive: {
+            auto indices=view_.selectedRegions();
+            if(indices.empty()&&view_.selectedRegion()>=0)indices.push_back(view_.selectedRegion());
+            document_.beginUndoGroup("Algoritmo de-click");
+            for(int index:indices){
+                if(index<0||index>=static_cast<int>(document_.regions().size()))continue;
+                auto region=document_.regions()[index];
+                if(region.kind!=DetectionKind::Click)continue;
+                region.repair=true;region.editMode=0;region.manualOperation=false;
+                region.repairMethod=commandId==EditorCommand::kClickRepairLinear?"linear":
+                    commandId==EditorCommand::kClickRepairPredictive?"predictive":"auto";
+                region.approved=region.enabled=true;region.decisionSource="user";
+                document_.updateRegion(index,region);
+            }
+            document_.endUndoGroup();hasPreview_=false;markDocumentChanged(false);view_.refreshDocument(false);
+            setStatusMessage("De-click aggiornato; anteprima/export usano lo stesso motore");break;
+        }
+        case EditorCommand::kPreviewResidual: {
+            commandPreview();if(!hasPreview_)break;
+            auto residual=studio::removedSignal(document_.audio(),preview_);
+            commandStop();if(!ensurePlayerOpen())break;
+            auto samples=std::make_shared<std::vector<float>>(std::move(residual.samples));
+            player_.setAudio(samples,document_.frameCount());playerUsesPreview_=false;abOriginal_=true;
+            player_.play(view_.hasSelection()?view_.selectionStart():view_.playhead());
+            setStatusMessage("SOLO RIMOSSO: differenza allineata ai campioni originali");break;
+        }
         case EditorCommand::kStudioPreview: commandPreview(); break;
         case EditorCommand::kStudioApply: commandApplyPreview(); break;
         case EditorCommand::kStudioExportPlan: commandExportPlan(); break;
@@ -2703,6 +2762,8 @@ void EditorWindow::commandRegionMode(int mode) {
         EditRegion region = document_.regions()[static_cast<size_t>(index)];
         // La modalita' si puo' assegnare anche a un evento escluso: viene
         // conservata e sara' applicata quando l'evento verra' reincluso.
+        if(region.kind==DetectionKind::Click && mode!=0)continue;
+        if(region.kind==DetectionKind::Click)region.repair=false;
         region.editMode = std::max(0, std::min(2, mode));
         document_.updateRegion(index, region);
         if (!region.enabled || !region.approved) ++pending;
@@ -2730,6 +2791,8 @@ void EditorWindow::commandRegionGlobalMode(int mode) {
     for (size_t i = 0; i < document_.regions().size(); ++i) {
         EditRegion region = document_.regions()[i];
         if (!region.enabled || !region.approved) continue; // le eccezioni restano
+        if(region.kind==DetectionKind::Click && defaultEditMode_!=0)continue;
+        if(region.kind==DetectionKind::Click)region.repair=false;
         region.editMode = defaultEditMode_;
         document_.updateRegion(static_cast<int>(i), region);
         ++changed;
@@ -2872,10 +2935,10 @@ void EditorWindow::commandPreview() {
     player_.stop();
     char message[256] = {};
     snprintf(message, sizeof(message),
-             "anteprima pronta: %.3f -> %.3f s (%.3f s rimossi, %d interventi)",
+             "anteprima pronta: %.3f -> %.3f s (%.3f s rimossi, %d interventi, %d click conservati per rischio vocale)",
              document_.audio().durationSeconds(), preview_.audio.durationSeconds(),
              static_cast<double>(preview_.removedSamples) / std::max(1, document_.sampleRate()),
-             preview_.appliedEvents);
+             preview_.appliedEvents,preview_.declinedEvents);
     setStatusMessage(message);
     updateStatusBar();
 }
@@ -3671,7 +3734,7 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
         setStatusMessage("selezionare almeno un evento da etichettare");
         return;
     }
-    if (label == LearningLabel::MissedBreath) {
+    if (label == LearningLabel::MissedBreath || label == LearningLabel::MissedClick) {
         bool hasManual = false;
         for (int index : indices) {
             if (index >= 0 && index < static_cast<int>(document_.regions().size()) &&
@@ -3680,7 +3743,7 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
             }
         }
         if (!hasManual) {
-            setStatusMessage("per un respiro mancato aggiungere prima una regione manuale");
+            setStatusMessage("per un evento mancato aggiungere prima una regione manuale");
             return;
         }
     }
@@ -3688,9 +3751,18 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
     for (int index : indices) {
         if (index < 0 || index >= static_cast<int>(document_.regions().size())) continue;
         EditRegion region = document_.regions()[static_cast<size_t>(index)];
-        if (region.kind != DetectionKind::Breath || region.manualOperation) continue;
+        const bool clickLabel = label==LearningLabel::ClickConfirmed || label==LearningLabel::ClickFalsePositive ||
+            label==LearningLabel::MissedClick || label==LearningLabel::MouthClickConfirmed || label==LearningLabel::VocalTransient;
+        if(label==LearningLabel::MissedClick && !region.fromDetection)region.kind=DetectionKind::Click;
+        if (label!=LearningLabel::EditorialExclusion && label!=LearningLabel::Unverified &&
+            ((clickLabel && region.kind!=DetectionKind::Click) || (!clickLabel && region.kind!=DetectionKind::Breath))) continue;
+        if (clickLabel) { region.manualOperation=false; region.repair=true; region.editMode=0; }
+        if (region.manualOperation && label!=LearningLabel::EditorialExclusion && label!=LearningLabel::Unverified) continue;
         region.learningLabel = learningLabelName(label);
         switch (label) {
+            case LearningLabel::ClickConfirmed:
+            case LearningLabel::MissedClick:
+            case LearningLabel::MouthClickConfirmed:
             case LearningLabel::BreathConfirmed:
             case LearningLabel::MissedBreath:
                 region.enabled = true;
@@ -3698,6 +3770,8 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
                 region.trainingEligible = true;
                 region.decisionSource = "user";
                 break;
+            case LearningLabel::ClickFalsePositive:
+            case LearningLabel::VocalTransient:
             case LearningLabel::FalsePositive:
                 region.enabled = false;
                 region.approved = false;

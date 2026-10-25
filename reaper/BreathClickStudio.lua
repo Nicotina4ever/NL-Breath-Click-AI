@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: MPL-2.0
 -- @description NL Breath Click Studio - editing diretto, TimeMap e apprendimento
--- @version 1.0.0-rc.2
+-- @version 1.0.0-rc.3
 -- @author Nicola Lanci Voice Over
 -- @link https://www.nicolalanci.com
 -- @about Independent Windows x64 beta. ReaPack installs scripts; verified backend installs on first use.
@@ -17,7 +17,7 @@
 --   [nomain] bc_runtime.ps1
 local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local X=dofile(here..'/bc_studio_bridge.lua')
-local UI={identity={name='NL Breath Click Studio',version='1.0.0-rc.2',adapter_version='1.0.0-rc.2-beta',author='Nicola Lanci Voice Over',email='info@nicolalanci.com',website='www.nicolalanci.com'},bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
+local UI={identity={name='NL Breath Click Studio',version='1.0.0-rc.3',adapter_version='1.0.0-rc.3-beta',author='Nicola Lanci Voice Over',email='info@nicolalanci.com',website='www.nicolalanci.com'},bridge=X,selected={},scroll=0,anchor=1,buttons={},last_mouse=0,refresh=-1}
 local function invoke(fn)
     local previous=X.status; X.last_error=nil
     local ok,err=xpcall(fn,debug.traceback)
@@ -35,6 +35,18 @@ function UI.action(name)
         elseif package.config:sub(1,1)=='\\' then reaper.ExecProcess('cmd.exe /d /c start "" "'..target..'"',-2)
         elseif reaper.GetOS():match('OSX') then reaper.ExecProcess('open "'..target..'"',-2)
         else reaper.ExecProcess('xdg-open "'..target..'"',-2) end
+    elseif name=='Rileva respiri' then X.settings.detect_breath=X.settings.detect_breath==false;X.save_settings()
+    elseif name=='Rileva click' then X.settings.detect_clicks=not X.settings.detect_clicks;X.save_settings()
+    elseif name=='Filtro' then UI.filter=((UI.filter or 0)+1)%4;UI.order_events=nil;UI.scroll=0
+    elseif name=='Ripara click' then X.apply_selected(UI.selected,'repair')
+    elseif name=='Click confermato' then X.label(UI.selected,'click_confirmed')
+    elseif name=='Falso click' then X.label(UI.selected,'click_false_positive')
+    elseif name=='Schiocco' then X.label(UI.selected,'mouth_click_confirmed')
+    elseif name=='Preserva voce' then X.label(UI.selected,'vocal_transient')
+    elseif name=='Click mancato' then UI.reveal_id=X.add_manual('missed_click',1)
+    elseif name=='Algoritmo' then
+        local choice=gfx.showmenu('Auto|Lineare|Predittivo')
+        if choice>0 then X.repair_method(UI.selected,({'auto','linear','predictive'})[choice]) end
     elseif name=='Analizza' then X.begin('analyze',X.selected_items())
     elseif name=='Applica incluse' then X.begin('render',X.selected_items())
     elseif name=='Annulla lavoro' then X.cancel()
@@ -62,16 +74,17 @@ function UI.action(name)
     elseif name=='Dimezza' then X.apply_selected(UI.selected,'halve')
     elseif name=='Originale' then X.compare(false)
     elseif name=='Elaborato' then X.compare(true)
+    elseif name=='Solo rimosso' then X.difference()
     elseif name=='Undo' then X.undo(false)
     elseif name=='Redo' then X.undo(true)
     elseif name=='Motore' then X.configure_engine()
     elseif name=='Fusion / DSP' then X.settings.detector=X.settings.detector=='fusion' and 'dsp' or 'fusion'; X.save_settings()
     elseif name=='Impostazioni' then
-        local ok,text=reaper.GetUserInputs('NL Breath Click Studio - trattamento',2,'Attenuazione dB,Fade ms',tostring(X.settings.reduction_db)..','..tostring(X.settings.fade_ms))
+        local ok,text=reaper.GetUserInputs('NL Breath Click Studio - trattamento',3,'Attenuazione dB,Fade ms,Sensibilita click 0-1',tostring(X.settings.reduction_db)..','..tostring(X.settings.fade_ms)..','..tostring(X.settings.click_sensitivity or .5))
         if ok then
-            local a,b=text:match('^([^,]+),([^,]+)$'); a=tonumber(a); b=tonumber(b)
-            assert(a and b and a==a and b==b and a>=-120 and a<=0 and b>=0 and b<=500,'Usa attenuazione da -120 a 0 dB e fade da 0 a 500 ms')
-            X.settings.reduction_db=a; X.settings.fade_ms=b
+            local a,b,c=text:match('^([^,]+),([^,]+),([^,]+)$'); a=tonumber(a); b=tonumber(b);c=tonumber(c)
+            assert(c and c>=0 and c<=1 and a and b and a==a and b==b and a>=-120 and a<=0 and b>=0 and b<=500,'Usa attenuazione da -120 a 0 dB e fade da 0 a 500 ms')
+            X.settings.reduction_db=a; X.settings.fade_ms=b;X.settings.click_sensitivity=c
             X.save_settings()
         end
     elseif name=='Ascolta' then
@@ -91,7 +104,7 @@ function UI.action(name)
         local sr=ctx.state.plan.sample_rate
         local ok,text=reaper.GetUserInputs('Bordi respiro - coordinate originali in secondi',2,'Inizio,Fine',string.format('%.6f,%.6f',e.start/sr,e['end']/sr))
         if ok then
-            local a,b=text:match('^([^,]+),([^,]+)$'); a=tonumber(a); b=tonumber(b)
+            local a,b,c=text:match('^([^,]+),([^,]+),([^,]+)$'); a=tonumber(a); b=tonumber(b);c=tonumber(c)
             assert(a and b and a>=0 and b>a and b<=ctx.state.frames/sr,'Intervallo non valido')
             X.set_bounds({[index]=true},math.floor(a*sr+.5),math.floor(b*sr+.5))
         end
@@ -197,7 +210,11 @@ function UI.draw()
     local ctx=UI.ctx; local events=ctx and ctx.state and ctx.state.plan.events or {}
     if UI.order_events~=events then
         UI.order_events=events; UI.order={}
-        for i in ipairs(events) do UI.order[#UI.order+1]=i end
+        for i,e in ipairs(events) do
+            local f=UI.filter or 0
+            if f==0 or (f==1 and e.kind==0) or (f==2 and e.kind==1) or
+                (f==3 and (e.classification=='speech_overlap' or e.classification=='mouth_click' or e.classification=='vocal_transient')) then UI.order[#UI.order+1]=i end
+        end
         table.sort(UI.order,function(a,b) return events[a].start<events[b].start end)
     end
     if UI.reveal_id then
@@ -212,8 +229,13 @@ function UI.draw()
     local applied=0; for _,e in ipairs(events) do if e.bcs_applied then applied=applied+1 end end
     text(14,258,string.format('%d eventi · %d applicati · %d inclusi · %d esclusi%s',#events,applied,included,#events-included,
         outside>0 and (' · '..outside..' correzioni fuori item conservate') or ''),.65,.75,.8)
+    local tools={{'Rileva respiri',130},{'Rileva click',120},{'Filtro',65},{'Ripara click',105},{'Algoritmo',95}}
+    local tx=14;for _,b in ipairs(tools) do button(b[1],tx,gfx.h-106,b[2],clicked);tx=tx+b[2]+6 end
+    text(tx,gfx.h-102,(X.settings.detect_breath~=false and 'Respiri ON' or 'Respiri OFF')..' · '..(X.settings.detect_clicks and 'Click ON' or 'Click OFF'),.5,.9,.8)
+    local labels_click={{'Click confermato',145},{'Falso click',105},{'Click mancato',125},{'Schiocco',95},{'Preserva voce',130},{'Solo rimosso',125}}
+    tx=14;for _,b in ipairs(labels_click) do button(b[1],tx,gfx.h-71,b[2],clicked);tx=tx+b[2]+6 end
     UI.wave.draw(ctx,events,clicked,283)
-    local top,bottom,height=439,gfx.h-67,27
+    local top,bottom,height=439,gfx.h-110,27
     UI.list_top=top
     local visible=math.max(1,math.floor((bottom-top)/height))
     if UI.reveal_index then
@@ -223,16 +245,18 @@ function UI.draw()
         UI.reveal_index=nil
     end
     if gfx.mouse_wheel~=0 then UI.scroll=UI.scroll-math.floor(gfx.mouse_wheel/120)*3; gfx.mouse_wheel=0 end
-    UI.scroll=math.max(0,math.min(UI.scroll,math.max(0,#events-visible)))
+    UI.scroll=math.max(0,math.min(UI.scroll,math.max(0,#UI.order-visible)))
     local modes={attenuate='Attenua',silence='Silenzia',cut='Taglia',halve='Dimezza'}
+    local kinds={digital_click='Click digitale',saliva_click='Saliva breve',mouth_click='Schiocco',speech_overlap='Click/voce incerto',vocal_transient='Transiente vocale'}
     for row=1,visible do
         local index=UI.order[row+UI.scroll]; local e=events[index]; if not e then break end
         local y=top+(row-1)*height
         if UI.selected[index] then color(.12,.30,.41); gfx.rect(12,y,gfx.w-24,height-2,1) end
         local sr=ctx.state.plan.sample_rate
         local a,b=X.event_interval(ctx,e)
-        local labels={breath_confirmed='confermato',false_positive='falso positivo',missed_breath='mancato confermato',editorial_exclusion='escluso editoriale'}
-        text(19,y+3,(e.approved and '[x]' or '[ ]')..string.format(' BC%02d   %7.3f → %7.3f    %-8s  %s · %s%s',e.bcs_short or index,a,b,modes[e.mode] or e.mode,e.kind==1 and 'Click' or 'Respiro',e.bcs_applied and 'APPLICATO' or 'proposto',labels[e.learning_label] and (' · '..labels[e.learning_label]) or ''),e.approved and .91 or .48,e.approved and .86 or .52,e.approved and .65 or .56)
+        local labels={breath_confirmed='confermato',false_positive='falso positivo',missed_breath='mancato confermato',editorial_exclusion='escluso editoriale',click_confirmed='click confermato',click_false_positive='falso click',missed_click='click mancato',mouth_click_confirmed='schiocco confermato',vocal_transient='voce preservata'}
+        local cr,cg,cb=.91,.86,.65;if e.kind==1 then cr,cg,cb=.98,.57,.43 end;if not e.approved then cr,cg,cb=.48,.52,.56 end
+        text(19,y+3,(e.approved and '[x]' or '[ ]')..string.format(' BC%02d   %7.3f → %7.3f    %-8s  %s · %s%s',e.bcs_short or index,a,b,modes[e.mode] or e.mode,e.kind==1 and (kinds[e.classification] or 'Click') or 'Respiro',e.bcs_applied and 'APPLICATO' or e.bcs_declined and 'AUTO: CONSERVATO' or 'proposto',labels[e.learning_label] and (' · '..labels[e.learning_label]) or ''),cr,cg,cb)
         if clicked and inside(12,y,gfx.w-24,height) then
             if (gfx.mouse_cap&4)~=0 then UI.selected[index]=not UI.selected[index] or nil
             elseif (gfx.mouse_cap&8)~=0 then
@@ -248,8 +272,8 @@ function UI.draw()
         end
     end
     local status=X.status:match('^[^\r\n]*') or X.status
-    text(14,gfx.h-50,status:sub(1,125),X.last_error and 1 or .6,X.last_error and .55 or .84,.63)
-    text(14,gfx.h-27,'Ctrl/Shift: selezione multipla · Spazio: ascolta · Canc: escludi · Ctrl+Z/Y: Undo/Redo',.5,.6,.67)
+    text(14,gfx.h-37,status:sub(1,125),X.last_error and 1 or .6,X.last_error and .55 or .84,.63)
+    text(14,gfx.h-17,'Ctrl/Shift: selezione multipla · Spazio: ascolta · Canc: escludi · Ctrl+Z/Y: Undo/Redo',.5,.6,.67)
     if key==32 then invoke(function() UI.action('Ascolta') end)
     elseif key==6579564 or key==127 then invoke(function() UI.action('Escludi') end)
     elseif key==26 then invoke(function() UI.action('Undo') end)
@@ -257,11 +281,12 @@ function UI.draw()
     gfx.update()
     return key>=0 and key~=27
 end
-function UI.open()
+function UI.open(title,development)
     X.load_settings()
+    if development then X.settings.detect_breath=true;X.settings.detect_clicks=true end
     local engine_ready=pcall(X.engine)
     if not engine_ready and reaper.file_exists(here..'/runtime-release.json') then X.runtime.install(here) end
-    gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0)
+    gfx.init(title or 'NL Breath Click Studio - REAPER preview',1040,760,0)
     reaper.atexit(function() X.cancel(); X.stop_preview(); UI.wave.close(); gfx.quit() end)
     local function frame()
         local ok,keep=xpcall(UI.draw,debug.traceback)

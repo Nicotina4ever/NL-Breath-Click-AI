@@ -400,40 +400,9 @@ AnalysisResult OfflineAnalyzer::analyze(const float* samples,
     std::vector<Detection> detections;
 
     // ------------------------------------------------------------------ click
-    if (settings.detectClicks && subWindow > 0 && !clickScores.empty()) {
-        const std::vector<ScoreRun> runs = extractRuns(clickScores, clickEnter, clickExit);
-
-        // Le sotto-finestre sono molto piu' brevi dei frame: la durata va
-        // calcolata in campioni, non in frame.
-        const int64_t padSamples = std::max<int64_t>(1, static_cast<int64_t>(msToSamples * 2.0));
-        const int64_t minSamples = std::max<int64_t>(1, static_cast<int64_t>(msToSamples * settings.minClickMs));
-        const int64_t maxSamples = std::max<int64_t>(minSamples, static_cast<int64_t>(msToSamples * settings.maxClickMs));
-
-        for (const ScoreRun& run : runs) {
-            if (cancel()) return result;
-            int64_t start = static_cast<int64_t>(run.firstFrame) * subWindow;
-            int64_t end = (static_cast<int64_t>(run.lastFrame) + 1) * subWindow;
-            start = std::max<int64_t>(0, start - padSamples);
-            end = std::min<int64_t>(totalSamples, end + padSamples);
-            if (end <= start) continue;
-
-            // Un click vero e' breve: oltre il limite non e' un click ma un
-            // attacco o una sibilante.
-            if (end - start > maxSamples) continue;
-            if (end - start < minSamples) {
-                const int64_t center = (start + end) / 2;
-                start = std::max<int64_t>(0, center - minSamples / 2);
-                end = std::min<int64_t>(totalSamples, start + minSamples);
-            }
-
-            Detection detection;
-            detection.kind = DetectionKind::Click;
-            detection.startSample = start;
-            detection.endSample = end;
-            detection.peakScore = run.peakScore;
-            detection.meanScore = run.meanScore;
-            detections.push_back(detection);
-        }
+    if (settings.detectClicks) {
+        const auto clicks = detectMouthClicks(samples,count,sampleRate,settings,cancel);
+        detections.insert(detections.end(),clicks.begin(),clicks.end());
     }
 
     // ---------------------------------------------------------------- respiri
@@ -660,7 +629,7 @@ AnalysisResult OfflineAnalyzer::analyze(const float* samples,
     const int64_t generalMergeGap =
         std::max<int64_t>(0, static_cast<int64_t>(msToSamples * settings.mergeGapMs));
     const int64_t clickMergeGap =
-        std::max<int64_t>(0, static_cast<int64_t>(msToSamples * 4.0));
+        std::max<int64_t>(0, static_cast<int64_t>(msToSamples * 0.0));
     const int64_t maxClickSamplesForMerge =
         std::max<int64_t>(1, static_cast<int64_t>(msToSamples * settings.maxClickMs));
 
@@ -700,35 +669,6 @@ AnalysisResult OfflineAnalyzer::analyze(const float* samples,
                                            detection.lengthSamples() > maxClickSamplesForMerge;
                                 }),
                  merged.end());
-
-    // Verifica incrociata: il rumore a banda larga di un respiro produce
-    // picchi dell'errore di predizione che sembrano click. Se una regione e'
-    // gia' stata riconosciuta come respiro, quei picchi non sono click.
-    if (settings.detectBreath && settings.detectClicks) {
-        std::vector<Detection> breaths;
-        breaths.reserve(merged.size());
-        for (const Detection& detection : merged) {
-            if (detection.kind == DetectionKind::Breath) {
-                breaths.push_back(detection);
-            }
-        }
-
-        if (!breaths.empty()) {
-            merged.erase(
-                std::remove_if(merged.begin(), merged.end(),
-                               [&breaths](const Detection& detection) {
-                                   if (detection.kind != DetectionKind::Click) return false;
-                                   for (const Detection& breath : breaths) {
-                                       if (detection.startSample < breath.endSample &&
-                                           detection.endSample > breath.startSample) {
-                                           return true;
-                                       }
-                                   }
-                                   return false;
-                               }),
-                merged.end());
-        }
-    }
 
     // ------------------------------------------- filtro del modello addestrato
     //

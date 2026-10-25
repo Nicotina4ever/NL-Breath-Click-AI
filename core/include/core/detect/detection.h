@@ -20,6 +20,9 @@ enum class DetectionKind {
 };
 
 const char* detectionKindName(DetectionKind kind);
+inline bool clickReviewRequired(const std::string& classification) {
+    return classification=="speech_overlap" || classification=="mouth_click" || classification=="vocal_transient";
+}
 
 // Una regione rilevata, in campioni assoluti dall'inizio del materiale.
 struct Detection {

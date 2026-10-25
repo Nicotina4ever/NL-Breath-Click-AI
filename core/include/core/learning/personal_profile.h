@@ -23,7 +23,8 @@ enum class LearningLabel {
     BreathConfirmed,
     FalsePositive,
     MissedBreath,
-    EditorialExclusion
+    EditorialExclusion,
+    ClickConfirmed, ClickFalsePositive, MissedClick, MouthClickConfirmed, VocalTransient
 };
 
 const char* learningLabelName(LearningLabel label);

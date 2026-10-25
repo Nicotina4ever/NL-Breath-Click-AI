@@ -7,11 +7,8 @@
 //   * RESPIRO -> attenuazione con rampe di attacco/rilascio a coseno
 //     rialzato. Una moltiplicazione netta produrrebbe un gradino udibile.
 //
-//   * CLICK -> RIPARAZIONE per interpolazione lineare sul breve intervallo
-//     dell'impulso. Per un evento di pochi millisecondi questo elimina il
-//     click senza lasciare un "buco" di dinamica, ed e' la tecnica usata in
-//     editing vocale professionale. Oltre una certa durata l'interpolazione
-//     diventa artificiosa e si ripiega sull'attenuazione.
+//   * CLICK -> ricostruzione locale lineare/Burg, con rinuncia automatica
+//     quando il contesto non giustifica la previsione. Nessun cambio durata.
 //
 //  L'API principale lavora su RegionOperation, un tipo neutro: cosi' le stesse
 //  funzioni servono sia i rilevamenti automatici sia le regioni modificate a
@@ -36,7 +33,7 @@ struct EditSettings {
 
     // Riparazione per interpolazione dei click brevi.
     bool repairClicks = true;
-    float repairMaxMs = 15.0f;
+    float repairMaxMs = 45.0f;
 
     // Rampe.
     float attackMs = 8.0f;
@@ -59,6 +56,7 @@ struct RegionOperation {
     // Solo per i click: ripara per interpolazione invece di attenuare.
     // Ha effetto solo se la regione non supera EditSettings::repairMaxMs.
     bool repair = false;
+    std::string repairMethod = "auto";
 
     int64_t lengthSamples() const { return endSample - startSample; }
 };
@@ -68,6 +66,7 @@ struct EditReport {
     size_t clickRegionsRepaired = 0;
     size_t clickRegionsAttenuated = 0;
     size_t clickRegionsSkipped = 0;
+    std::vector<RegionOperation> declinedClicks;
     size_t regionsDisabled = 0;
     float maxGainReductionDb = 0.0f;
     int64_t samplesModified = 0;

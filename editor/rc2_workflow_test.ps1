@@ -257,6 +257,23 @@ try {
  Check ((Msg $h 0x8130 2) -eq 0) 'all click processing disabled'
  Cmd 2510
  Check ((Msg $h 0x8130 2) -eq 1) 'click processing restored'
+ Cmd 2500; ClickFrame 240060
+ Check ((Msg $h 0x8132) -eq 2) 'click selected independently'
+ Cmd 2540
+ Cmd 2541
+ Check ((Msg $h 0x8131 2) -eq 0) 'click false positive excludes click without breath label contamination'
+ Cmd 1100
+ Check ((Msg $h 0x8131 2) -eq 1) 'Undo restores confirmed click'
+ Cmd 2546; Cmd 1208
+ Check ((Msg $h 0x8141) -eq $baseFrames) 'dedicated de-click preserves preview duration'
+ $originalClick=Msg $h 0x8143 240060
+ $processedClick=Msg $h 0x8142 240060
+ Cmd 2548
+ Check ([math]::Abs((Msg $h 0x8144 240060)-($originalClick-$processedClick)) -le 2) 'removed-signal player equals original minus processed PCM'
+ Cmd 1502
+ Cmd 1315; Cmd 1208
+ Check ([math]::Abs((Msg $h 0x8142 240060)-$originalClick*[math]::Pow(10,-12/20.0)) -le 2) 'explicit Attenua on a click applies gain rather than reconstruction'
+ Cmd 1100
  Cmd 2500; ClickFrame 155000; ClickFrame 200000 9
  Check ((Msg $h 0x813f) -eq 2) 'Ctrl+click selects multiple events'
  ClickFrame 200000 9

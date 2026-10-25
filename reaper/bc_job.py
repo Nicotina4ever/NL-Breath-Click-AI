@@ -61,17 +61,19 @@ def execute(request):
                 if job.get('prepared'):run('verify-source',job['source'],'--sha256',job['source_sha256'])
                 else:run('slice',job['source'],'--out',segment,'--start',job['offset'],'--duration',job['duration'])
                 plan=root/'analysis.json'
-                run('plan',segment,'--out',plan,'--detector',job['detector'],'--reduction-db',job['reduction_db'],'--fade-ms',job['fade_ms'])
+                args=['plan',segment,'--out',plan,'--detector',job['detector'],'--reduction-db',job['reduction_db'],'--fade-ms',job['fade_ms']]
+                args.extend(('--breaths','1' if job.get('detect_breath',True) else '0','--clicks','1' if job.get('detect_clicks',False) else '0','--click-sensitivity',job.get('click_sensitivity',.5)))
+                run(*args)
                 if job.get('profile'):
                     filtered=root/'personal.json';run('profile-filter','--plan',plan,'--profile',job['profile'],'--out',filtered);plan=filtered
                 meta=read(Path(str(segment)+'.source.json'))
                 run('verify-source',job['source'],'--sha256',meta['source_sha256'])
                 result=dict(status='complete',plan=str(plan),prepared=str(segment),source_sha256=meta['source_sha256'],frames=meta['frames'])
-            elif mode=='render':
+            elif mode in ('render','difference'):
                 run('verify-source',job['source'],'--sha256',job['source_sha256'])
-                run('edit',job['prepared'],'--plan',job['plan'],'--out-dir',root)
+                run('difference' if mode=='difference' else 'edit',job['prepared'],'--plan',job['plan'],'--out-dir',root)
                 run('verify-source',job['source'],'--sha256',job['source_sha256'])
-                output=root/(Path(job['prepared']).stem+'_edit.wav');report=Path(str(output)+'.edit.json')
+                output=root/(Path(job['prepared']).stem+('_difference.wav' if mode=='difference' else '_edit.wav'));report=Path(str(output)+'.edit.json')
                 if not report.is_file():raise RuntimeError('Render report missing')
                 result=dict(status='complete',output=str(output),report=str(report))
             elif mode in ('profile-train','labels-export'):

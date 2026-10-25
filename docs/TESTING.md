@@ -3,8 +3,8 @@
 ## Suite automatica
 
 `ctest --test-dir build -C Release --output-on-failure`: 33 test sul tag RC2;
-35 sul main successivo con GUI Windows completa. La CI headless registra
-22 su Windows e 21 su Linux/macOS (il worker POSIX sostituisce PowerShell).
+37 sul ramo sperimentale RC3 con GUI Windows completa. La CI headless registra
+24 su Windows e 23 su Linux/macOS (il worker POSIX sostituisce PowerShell).
 Nessun test registrato viene saltato; GUI e REAPER nativo non fanno parte
 della matrice headless.
 Sono mantenuti controlli su PCM/durata/TimeMap, overlap, selezione e Undo,
@@ -20,6 +20,35 @@ sulla stessa take, Undo/Redo, cue, altre tracce, offset, trim/split, rate,
 FX JS reali, batch, cancel, rollback, labels e salvataggio/riapertura.
 `ui_harness.lua` e `ui_driver.ps1` verificano mouse/tastiera e catture della
 sola finestra del test, compresa la maniglia durante il trascinamento.
+
+Il runner usa `host_ready.py` prima di avviare qualsiasi test: osserva il
+dialogo di valutazione e preme normalmente Still Evaluating solo quando
+abilitato. Poi richiede finestra principale ed event loop pronti; il driver
+GUI richiede anche progetto, take e pannello utilizzabili. Timeout e modalita'
+iniziali non superate sono errori di inizializzazione, non del motore.
+Il gate Windows e' collaudato con countdown reale. macOS richiede accesso
+Accessibility; l'adapter X11 rileva il dialogo ma si ferma se non puo'
+provare lo stato del pulsante. Questi adapter nativi POSIX non sono collaudati
+dalla CI headless; Wayland richiede un adapter dedicato.
+
+`bc_mouth_click_engine` confronta linear/Burg su riferimento sintetico, tre
+modalita' indipendenti, durata, overlap applicato una volta, residuo esatto,
+rinuncia stereo atomica e separazione delle label click dal calibratore.
+`mouth_click.lua` verifica le stesse operazioni in REAPER reale, inclusi
+persistenza, Undo/Redo, Originale/Elaborato/Solo rimosso e rinuncia conservativa.
+
+Confronto aggiuntivo esplicito, non training (download solo con --download):
+
+```text
+python tests/public_click_audio.py --download --work build/public-click --cli build/bin/Release/bc_studio_cli.exe
+```
+
+Lo script fissa URL, autori, licenze e SHA di quattro piccole registrazioni
+pubbliche, conservate soltanto in build. Verifica p/t/k inalterati in automatico,
+tre gruppi di click di lingua, e confronta lineare/Burg/Auto su tre mix
+artificiali di click reale e voce reale. Auto deve rinunciare ai mix rischiosi.
+Misure MSE e fixture isolate non attestano naturalezza percettiva, precisione
+su saliva reale nel parlato o prestazioni su un corpus annotato indipendente.
 
 Comandi di build, suite e pacchetto in BUILDING.md. Conservare i report
 locali delle esecuzioni. Lo ZIP va verificato estratto con ambiente e

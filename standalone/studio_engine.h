@@ -20,7 +20,10 @@ struct Settings {
     double postPadMs = 10.0;
     float sensitivity = 0.8f;
     float threshold = 0.02f;
+    bool detectBreath = true;
     bool detectClicks = false;
+    float clickSensitivity = 0.5f;
+    float clickThreshold = 0.55f;
     std::optional<DetectorSettings> dspSettings;
     bool useRespiroEn = false;
     float aiThreshold = 0.064f;
@@ -50,6 +53,7 @@ struct Event {
     DetectionKind kind = DetectionKind::Breath;
     std::optional<float> reductionDb;
     bool repair = false;
+    std::string repairMethod = "auto";
     int64_t startSample = 0;   // campioni, inizio audio
     int64_t endSample = 0;     // esclusivo
     float score = 0.0f;        // confidenza del rilevatore
@@ -110,6 +114,7 @@ struct EditOperationResult {
     int64_t fadeFrames = 0;
     int64_t editedStart = 0;
     bool applied = false;
+    bool declined = false;
     std::string note;
 };
 
@@ -140,8 +145,12 @@ struct EditResult {
     int64_t crossfadeFrames = 0;
     int appliedEvents = 0;
     int rejectedEvents = 0;
+    int declinedEvents = 0;
     WavWriteReport wav;
 };
+
+// Residual on stable original coordinates (removed spans contribute original PCM).
+AudioBuffer removedSignal(const AudioBuffer& original, const EditResult& edited);
 
 struct EditPlan {
     int schema = 2;

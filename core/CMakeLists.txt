@@ -16,6 +16,7 @@ set(CORE_SOURCES
     src/dsp/breath_detector.cpp
     src/dsp/silence_gate.cpp
     src/dsp/click_detector.cpp
+    src/dsp/click_repair.cpp
     # rilevamento
     src/detect/offline_analyzer.cpp
     src/detect/detector_settings_codec.cpp

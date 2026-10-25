@@ -20,7 +20,7 @@ bool documentForPlan(const bc::studio::EditPlan& plan, bc::AudioDocument& doc, s
         error = "registrazione cambiata durante la lettura delle etichette"; return false;
     }
     for (const auto& e : plan.events) {
-        if (!e.trainingEligible || e.decisionSource != "user" || e.kind != bc::DetectionKind::Breath || e.manualOperation) continue;
+        if (!e.trainingEligible || e.decisionSource != "user" || e.manualOperation) continue;
         if (e.startSample < 0 || e.endSample <= e.startSample || e.endSample > doc.audio().frameCount()) {
             error = "etichetta fuori dalla registrazione originale"; return false;
         }
@@ -64,6 +64,7 @@ int commandLearning(int argc, char** argv) {
             if (plans.size() != 1 || !bc::loadPersonalProfile(profile, personal, &error) ||
                 !doc.load(plan.sourcePath, &error)) { if (error.empty()) error="profilo non valido"; break; }
             for (auto& e : plan.events) {
+                if (e.kind != bc::DetectionKind::Breath) continue;
                 if (e.trainingEligible && e.decisionSource == "user") continue;
                 if (!personal.accepts(bc::extractLearningFeatures(doc.audio(), e.startSample, e.endSample, e.score))) {
                     e.enabled = e.approved = false; e.reason = "personal_profile";

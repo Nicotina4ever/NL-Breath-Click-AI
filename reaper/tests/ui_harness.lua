@@ -16,10 +16,13 @@ local previous_repeat=reaper.GetSetRepeat(-1);reaper.GetSetRepeat(1)
 X.settings.fade_ms=0
 local take_count=reaper.CountTakes(item);local take_guid=state.take_guid
 local initial_length=reaper.GetMediaItemInfo_Value(item,'D_LENGTH')
-gfx.init('NL Breath Click Studio - REAPER preview',1040,760,0)
+local test_title='NL Breath Click Studio - GUI test '..(root:match('[^/]+$') or '')
+gfx.init(test_title,1040,760,0)
 UI.draw();UI.selected={[index]=true};UI.scroll=math.max(0,index-1);UI.draw()
 reaper.atexit(function() X.cancel();X.stop_preview();UI.wave.close();gfx.quit() end)
-local ready={title='NL Breath Click Studio - REAPER preview',buttons=UI.buttons,row={x=25,y=UI.list_top+(index-UI.scroll-1)*27+12},handles=UI.wave_handles}
+local ready={title=test_title,buttons=UI.buttons,row={x=25,y=UI.list_top+(index-UI.scroll-1)*27+12},handles=UI.wave_handles}
+ready.project=select(2,reaper.EnumProjects(-1,''));ready.take_ready=ctx~=nil and state.result~=nil;ready.host_gate=reaper.file_exists(root..'/host_ready')
+assert(ready.host_gate and ready.take_ready,'Initialization: project/panel not ready')
 assert(J.write(root..'/ui_ready.json',ready))
 local phase,started,checks=0,reaper.time_precise(),J.array()
 local last_trace
@@ -31,7 +34,7 @@ local function finish(status,err)
     X.stop_preview();reaper.GetSetRepeat(previous_repeat);UI.wave.close()
     assert(J.write(root..'/result.json',{status=status,error=err or '',checks=checks,resource=reaper.GetResourcePath(),project=BCS_TEST_PROJECT,version=reaper.GetAppVersion(),debug_state=debug_state}))
     reaper.Main_openProject('noprompt:'..BCS_TEST_PROJECT)
-    gfx.quit();reaper.defer(function() reaper.Main_OnCommand(40004,0) end)
+    gfx.quit();if not BCS_KEEP_OPEN then reaper.defer(function() reaper.Main_OnCommand(40004,0) end) end
 end
 local function tick()
     local ok,done=xpcall(function()

@@ -275,7 +275,7 @@ void EditorWindow::createRegionPanel() {
     toolTime_ = makeButton(EditorCommand::kToolTimeSelection, L"SELEZIONE TEMPO", 151, 348, 135, 26);
     regionFilter_ = CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
         8, 416, 278, 220, regionPanel_, reinterpret_cast<HMENU>(EditorCommand::kRegionFilter), instance_, nullptr);
-    for (const wchar_t* text : {L"Tutti gli eventi", L"Respiri", L"Click", L"Manuali", L"Automatici", L"Esclusi", L"Incerti / possibile parlato"})
+    for (const wchar_t* text : {L"Tutti gli eventi", L"Respiri", L"Click", L"Manuali", L"Automatici", L"Esclusi", L"Incerti / possibile parlato", L"Click digitali", L"Saliva / labbra", L"Falsi positivi verificati"})
         SendMessageW(regionFilter_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text));
     SendMessageW(regionFilter_, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont_), TRUE);
     SendMessageW(regionFilter_, CB_SETCURSEL, 0, 0);
@@ -372,8 +372,13 @@ void EditorWindow::refreshRegionPanel(bool force) {
     SetWindowTextW(regionTitle_, region.manualOperation ? L"Intervento manuale selezionato" : region.kind == DetectionKind::Breath
                                      ? L"Respiro selezionato"
                                      : L"Click selezionato");
-    SetWindowTextW(regionState_, region.learningLabel == "false_positive" ? L"Falso positivo verificato (negativo)" : isIncluded
-        ? (region.trainingEligible ? L"Incluso - confermato training" : L"Incluso")
+    if(region.kind==DetectionKind::Click)
+        SetWindowTextW(regionTitle_,region.classification=="digital_click"?L"Click digitale":
+            region.classification=="saliva_click"?L"Click di saliva breve":
+            region.classification=="mouth_click"?L"Schiocco saliva/labbra":
+            region.classification=="speech_overlap"?L"Click sovrapposto alla voce - rivedere":L"Click selezionato");
+    SetWindowTextW(regionState_, (region.learningLabel == "false_positive" || region.learningLabel == "click_false_positive" || region.learningLabel=="vocal_transient") ? L"Falso positivo verificato (negativo)" : isIncluded
+        ? (region.trainingEligible ? (region.kind==DetectionKind::Click?L"Incluso - label click salvata":L"Incluso - confermato training") : L"Incluso")
         : (isRejected ? L"Escluso (resta nel progetto)" : L"Escluso / non incluso"));
 
     const double sampleRate = std::max(1, document_.sampleRate());
@@ -421,12 +426,16 @@ void EditorWindow::commandTimeBounds() {
 
 void EditorWindow::updateLearningSummary() {
     if (!learningSummary_) return;
-    int positive = 0, negative = 0, editorial = 0, unverified = 0, files = 0;
+    int positive = 0, negative = 0, editorial = 0, unverified = 0, files = 0, clickPositive=0, clickNegative=0;
     for (int i = 0; i < static_cast<int>(tracks_.size()); ++i) {
         const AudioDocument* doc = trackDocument(i);
         if (!doc || !doc->isLoaded()) continue;
         bool verified = false;
         for (const auto& r : doc->regions()) {
+            if(r.kind==DetectionKind::Click && r.trainingEligible && r.decisionSource=="user"){
+                if(r.learningLabel=="click_confirmed" || r.learningLabel=="missed_click" || r.learningLabel=="mouth_click_confirmed")++clickPositive;
+                if(r.learningLabel=="click_false_positive" || r.learningLabel=="vocal_transient")++clickNegative;
+            }
             if (r.kind != DetectionKind::Breath || r.manualOperation) continue;
             const bool human = r.trainingEligible && r.decisionSource == "user";
             if (human && (r.learningLabel == "breath_confirmed" || r.learningLabel == "missed_breath")) { ++positive; verified = true; }
@@ -438,8 +447,8 @@ void EditorWindow::updateLearningSummary() {
     }
     wchar_t text[256] = {};
     swprintf(text, 256, L"Training: +%d / -%d | Editoriali %d | Non verificati %d\n"
-        L"File con label: %d. %s", positive, negative, editorial, unverified, files,
-        (files < 2 || positive < 6 || negative < 6) ? L"Esempi insufficienti" : L"Da validare su file indipendenti");
+        L"File respiri: %d. %s\nClick (label separate): +%d / -%d", positive, negative, editorial, unverified, files,
+        (files < 2 || positive < 6 || negative < 6) ? L"Esempi insufficienti" : L"Da validare su file indipendenti",clickPositive,clickNegative);
     SetWindowTextW(learningSummary_, text);
 }
 

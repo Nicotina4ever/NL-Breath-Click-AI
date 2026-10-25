@@ -93,7 +93,11 @@ bc::studio::Settings parseSettings(int argc, char** argv, std::string& outDir,
             return true;
         };
         std::string value;
-        if (arg == "--out-dir" && next(value)) outDir = value;
+        if (arg == "--breaths" && next(value)) settings.detectBreath = value == "1";
+        else if (arg == "--clicks" && next(value)) settings.detectClicks = value == "1";
+        else if (arg == "--click-sensitivity" && next(value)) { double d=0; if(parseDouble(value,d)) settings.clickSensitivity=static_cast<float>(d); }
+        else if (arg == "--click-threshold" && next(value)) { double d=0; if(parseDouble(value,d)) settings.clickThreshold=static_cast<float>(d); }
+        else if (arg == "--out-dir" && next(value)) outDir = value;
         else if (arg == "--json" && next(value)) jsonPath = value;
         else if (arg == "--out" && next(value)) jsonPath = value;
         else if (arg == "--batch-report" && next(value)) batchReport = value;
@@ -363,6 +367,7 @@ int commandEdit(int argc, char** argv) {
     double keepFraction = 0.5;
     double cutMarginMs = 0.0;
     bool applyAll = true;
+    const bool residual = std::string(argv[1]) == "difference";
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         auto next = [&](std::string& value) {
@@ -431,7 +436,7 @@ int commandEdit(int argc, char** argv) {
     std::error_code ec;
     std::filesystem::create_directories(std::filesystem::u8path(outDir), ec);
     const std::filesystem::path inputPath = std::filesystem::u8path(argv[2]);
-    const std::string suffix = mode == bc::studio::EditMode::Cut ? "_cut" :
+    const std::string suffix = residual ? "_difference" : mode == bc::studio::EditMode::Cut ? "_cut" :
                                (mode == bc::studio::EditMode::Halve ? "_halve" : "_edit");
     const std::string output = (std::filesystem::u8path(outDir) /
         (inputPath.stem().string() + suffix + ".wav")).u8string();
@@ -440,6 +445,12 @@ int commandEdit(int argc, char** argv) {
     if (!bc::studio::applyEditPlan(original, plan, &result, &error)) {
         std::cerr << "piano non applicabile: " << error << "\n";
         return 1;
+    }
+    if(residual) {
+        result.audio=bc::studio::removedSignal(original,result);
+        result.map.segments={{0,original.frameCount(),0,original.frameCount()}};
+        result.map.originalFrames=result.map.editedFrames=original.frameCount();
+        result.removedSamples=0;
     }
     const auto format = info.isFloat ? bc::WavFormat::Float32 :
                         (info.bitsPerSample <= 16 ? bc::WavFormat::Pcm16 : bc::WavFormat::Pcm24);
@@ -906,7 +917,7 @@ static int runStudioCli(int argc, char** argv) {
     if (command == "review") return commandReview(argc, argv);
     if (command == "batch-review") return commandBatchReview(argc, argv);
     if (command == "plan") return commandPlan(argc, argv);
-    if (command == "edit") return commandEdit(argc, argv);
+    if (command == "edit" || command == "difference") return commandEdit(argc, argv);
     if (command == "slice") return commandSlice(argc, argv);
     if (command == "verify-source") return commandVerifySource(argc, argv);
     if (command == "profile-train" || command == "profile-filter" || command == "labels-export") return commandLearning(argc, argv);
@@ -914,7 +925,7 @@ static int runStudioCli(int argc, char** argv) {
         std::cout << "{\"protocol\":\"nl.breathclick.cli\",\"protocol_version\":1,"
                      "\"version\":\"" BC_STUDIO_VERSION "\",\"source_commit\":\"" BC_SOURCE_COMMIT "\","
                      "\"backend\":\"cpu\",\"reaper_bridge\":1,\"direct_editing\":2,"
-                     "\"personal_profiles\":1,\"edit_plan_schema\":2}\n";
+                     "\"mouth_click_engine\":1,\"personal_profiles\":1,\"edit_plan_schema\":2}\n";
         return 0;
     }
     if (command == "probe") {

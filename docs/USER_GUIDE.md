@@ -279,7 +279,7 @@ REAPER non vengono aperti né modificati.
 - Non sono dichiarate prove su una macchina Windows pulita senza Visual
   Studio: il collaudo finale va fatto dall'utente.
 - La selezione esplicita del dispositivo di uscita non è ancora esposta.
-- Non c'è integrazione REAPER attiva in questa release.
+- L'integrazione REAPER e' una distribuzione indipendente dalla standalone.
 
 ## 12. Buone pratiche
 
@@ -302,3 +302,40 @@ Aiuto > Informazioni mostra versione e licenza, Nicola Lanci Voice Over,
 info@nicolalanci.com e www.nicolalanci.com. I due pulsanti aprono il programma
 email e il sito nel browser. Nel pannello REAPER usare Informazioni; Esc
 chiude questa schermata senza chiudere il pannello o modificare il progetto.
+
+## Motore Breath & Mouth Click — sperimentale RC3 locale
+
+La RC2 pubblicata rimane invariata. Nelle impostazioni della standalone e nel
+pannello REAPER, **Rileva respiri** e **Rileva click** sono indipendenti. Il
+rilevamento dei click usa DSP, anche senza caricare il modello dei respiri.
+Sensibilita', filtri e classificazioni rimangono distinti; i nomi digitali,
+saliva e schiocco sono ipotesi da rivedere, non diagnosi o etichette umane.
+
+Per un click selezionato scegliere **De-click / Ripara click**: Auto, Lineare
+o Predittiva (Burg bidirezionale). Auto controlla la prevedibilita' sui campioni
+adiacenti e l'accordo delle due ricostruzioni; quando il rischio e' alto,
+conserva l'audio e lo dichiara nel report/anteprima. In REAPER compare
+**AUTO: CONSERVATO**. Gli eventi incerti non vengono approvati automaticamente.
+Le alternative esplicite servono per il confronto: possono danneggiare la
+voce. Non estrapolare intervalli lunghi; il limite e' 45 ms. I click non
+modificano la durata e non usano Taglia/Dimezza.
+
+Usare **Originale**, **Elaborato** e **Solo rimosso** per confrontare il PCM
+con lo stesso motore. Il rimosso e' allineato alle coordinate originali anche
+in presenza di tagli dei respiri. In REAPER cambia la sorgente della stessa
+take, senza seconda traccia; Undo/Redo e l'originale su disco restano disponibili.
+
+Click confermato, Falso click, Click mancato, Schiocco e Preserva voce sono
+annotazioni distinte da quelle dei respiri. Escludi resta editoriale. Le
+annotazioni click sono persistenti ma **non addestrano il calibratore respiri**;
+non viene dichiarato un nuovo modello appreso per i click.
+
+Nel checkout Windows compilato, `reaper/Prova_RC3.cmd` apre la singola portable
+di prova, il motore RC3 e un progetto sintetico separato. Non installa nulla
+nel REAPER professionale. Se sono presenti le piccole fixture pubbliche in
+build, la demo comprende anche click di lingua e un mix artificiale con voce.
+`editor/Prova_RC3.cmd` avvia la standalone con preferenze locali di prova,
+senza sovrascrivere quelle della versione stabile; accetta il percorso audio
+come argomento. Il binario e' `build/bin/Release/bc_studio.exe`.
+Il collaudo percettivo su veri schiocchi di saliva sovrapposti al parlato
+rimane necessario prima di distribuire RC3.

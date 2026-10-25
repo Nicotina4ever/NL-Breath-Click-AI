@@ -17,7 +17,10 @@ $gate=New-Object Threading.Mutex($false,'Local\BreathClickReaperSandbox')
 if(-not $gate.WaitOne(0)) { $gate.Dispose(); throw 'Un altro test usa gia la portable REAPER condivisa' }
 try {
 $running=@(Get-Process reaper -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq (Join-Path $portable 'reaper.exe') })
-if($running.Count) { throw ('La portable di prova e gia aperta (PID '+($running.Id -join ',')+'). Chiuderla prima di un altro test.') }
+$reusing=$running.Count -eq 1
+if($running.Count -gt 1) { throw 'Initialization: more than one test portable instance' }
+if($reusing -and @(Get-Process reaper -ErrorAction SilentlyContinue).Count -ne 1) { throw 'Initialization: another REAPER instance exists; refusing ambiguous -nonewinst routing' }
+if($reusing) { $KeepOpen=[switch]$true }
 New-Item -ItemType Directory -Path $WorkRoot -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $portable 'Plugins') -Force | Out-Null
 if(-not $ReaperExecutable) {
@@ -103,6 +106,7 @@ function ConvertTo-LuaLiteral([string]$Value) {
     return '['+$equals+'['+$Value+']'+$equals+']'
 }
 $code="BCS_TEST_ROOT = $(ConvertTo-LuaLiteral $WorkRoot)`nBCS_KEEP_OPEN = $($KeepOpen.IsPresent.ToString().ToLowerInvariant())`n"
+$code+="BCS_TEST_IS_GUI = $($RunGuiInputTests.IsPresent.ToString().ToLowerInvariant())`n"
 $code+="local expected = $(ConvertTo-LuaLiteral $portable.Replace('\','/'))`n"
 $code+="BCS_TEST_RESOURCE = expected`n"
 if($PackageDirectory) {
@@ -116,9 +120,18 @@ if($TestProject) {
     $code+="BCS_TEST_PROJECT = $(ConvertTo-LuaLiteral $TestProject)`n"
 }
 $code+="assert(reaper.GetResourcePath():gsub('\\','/'):lower() == expected:lower(), 'Sandbox resource mismatch: refusing to run')`n"
+if(-not $PackageDirectory) {
+    $testEngine=Join-Path $repo 'build/bin/Release/bc_studio_cli.exe'
+    $code+="reaper.SetExtState('BreathClickStudio','engine',$(ConvertTo-LuaLiteral $testEngine),false)"+[char]10
+}
 $codec=ConvertTo-LuaLiteral (Join-Path $PSScriptRoot '..\bc_json.lua')
+$code+="local J=dofile($codec); assert(J.write(BCS_TEST_ROOT..'/startup_probe.json',{status='event_loop_available',resource=reaper.GetResourcePath()}))`n"
+$code+="local started=reaper.time_precise(); local function launch_when_ready()`n"
+$code+="if not reaper.file_exists(BCS_TEST_ROOT..'/host_ready') then if reaper.time_precise()-started<100 then reaper.defer(launch_when_ready) else J.write(BCS_TEST_ROOT..'/result.json',{status='initialization_failed',error='Host readiness gate did not open'}) end; return end`n"
+if($reusing) { $code+="reaper.Main_OnCommand(40859,0)`n" }
 $code+="local ok,err=xpcall(function() dofile($(ConvertTo-LuaLiteral $Script)) end,debug.traceback)`n"
-$code+="if not ok then local J=dofile($codec); assert(J.write(BCS_TEST_ROOT..'/result.json',{status='failed',error=tostring(err)})); if not BCS_KEEP_OPEN then reaper.defer(function()reaper.Main_OnCommand(40004,0)end) end end`n"
+$code+="if not ok then local J=dofile($codec); local status=(BCS_TEST_IS_GUI and not reaper.file_exists(BCS_TEST_ROOT..'/ui_ready.json')) and 'initialization_failed' or 'failed'; assert(J.write(BCS_TEST_ROOT..'/result.json',{status=status,error=tostring(err)})); if not BCS_KEEP_OPEN then reaper.defer(function()reaper.Main_OnCommand(40004,0)end) end end`n"
+$code+="end; reaper.defer(launch_when_ready)`n"
 [IO.File]::WriteAllText($bootstrap,$code,[Text.UTF8Encoding]::new($false))
 $env:APPDATA=Join-Path $portable 'appdata'; $env:LOCALAPPDATA=Join-Path $portable 'localappdata'
 $env:CommonProgramFiles=Join-Path $portable 'empty_common'
@@ -127,7 +140,18 @@ ${env:CommonProgramFiles(x86)}=$env:CommonProgramFiles
 $env:TEMP=Join-Path $WorkRoot 'temp'; $env:TMP=$env:TEMP
 New-Item -ItemType Directory -Path $env:APPDATA,$env:LOCALAPPDATA,$env:TEMP,(Join-Path $env:CommonProgramFiles 'VST3') -Force | Out-Null
 $arguments='-newinst -new -nosplash -noactivate -cfgfile "'+(Join-Path $portable 'reaper.ini')+'" "'+$bootstrap+'"'
-$child=Start-Process -FilePath (Join-Path $portable 'reaper.exe') -ArgumentList $arguments -PassThru -WindowStyle Hidden
+if($reusing) {
+    $arguments='-nonewinst -noactivate -cfgfile "'+(Join-Path $portable 'reaper.ini')+'" "'+$bootstrap+'"'
+    $dispatch=Start-Process -FilePath (Join-Path $portable 'reaper.exe') -ArgumentList $arguments -PassThru -WindowStyle Hidden
+    $child=$running[0]
+} else {
+    $child=Start-Process -FilePath (Join-Path $portable 'reaper.exe') -ArgumentList $arguments -PassThru -WindowStyle Hidden
+}
+$python=Join-Path (Split-Path -Parent $repo) 'python_win/python.exe'
+if(-not(Test-Path -LiteralPath $python)) { $python=(Get-Command python -ErrorAction Stop).Source }
+& $python (Join-Path $PSScriptRoot 'host_ready.py') --pid $child.Id --probe (Join-Path $WorkRoot 'startup_probe.json') --timeout 90 --report (Join-Path $WorkRoot 'initialization.json')
+if($LASTEXITCODE -ne 0) { throw 'REAPER initialization failed; no BreathClick engine or GUI test was started. See initialization.json' }
+[IO.File]::WriteAllText((Join-Path $WorkRoot 'host_ready'),'ready')
 [ordered]@{pid=$child.Id;executable=(Join-Path $portable 'reaper.exe');resource=$portable;script=$Script;started=(Get-Date -Format o)} |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $WorkRoot 'process.json') -Encoding UTF8
 Add-Type @'
@@ -154,7 +178,7 @@ while(-not(Test-Path -LiteralPath $report) -and -not $child.HasExited -and $cloc
         }
         $guiDriven=$true
     }
-    # Only dismiss the ordinary evaluation dialog owned by this exact child.
+    # Optional ReaPack report only; evaluation is handled by the host gate.
     [BcsSandboxWindows]::EnumWindows({param($h,$l)
         $ownerId=[uint32]0; [void][BcsSandboxWindows]::GetWindowThreadProcessId($h,[ref]$ownerId)
         if($ownerId -eq $child.Id) {
@@ -164,7 +188,7 @@ while(-not(Test-Path -LiteralPath $report) -and -not $child.HasExited -and $cloc
             [BcsSandboxWindows]::EnumChildWindows($h,{param($button,$unused)
                 $caption=New-Object Text.StringBuilder 256
                 [void][BcsSandboxWindows]::GetWindowText($button,$caption,256)
-                if(($caption.ToString() -match 'Still Evaluating' -or ($script:ownedReaPackReport -and $caption.ToString() -match '^&?OK$')) -and [BcsSandboxWindows]::IsWindowEnabled($button)) {
+                if($script:ownedReaPackReport -and $caption.ToString() -match '^&?OK$' -and [BcsSandboxWindows]::IsWindowEnabled($button)) {
                     [void][BcsSandboxWindows]::SendMessage($button,0xF5,[IntPtr]::Zero,[IntPtr]::Zero)
                 }; return $true
             },[IntPtr]::Zero) | Out-Null
@@ -172,7 +196,12 @@ while(-not(Test-Path -LiteralPath $report) -and -not $child.HasExited -and $cloc
     },[IntPtr]::Zero) | Out-Null
     Start-Sleep -Milliseconds 100
 }
-if(-not(Test-Path -LiteralPath $report)) { throw "No report; owned PID $($child.Id), sandbox $WorkRoot retained for inspection" }
+if($RunGuiInputTests -and -not(Test-Path -LiteralPath (Join-Path $WorkRoot 'ui_ready.json'))) { throw "REAPER GUI initialization failed: project/panel not ready; no GUI input sent. PID $($child.Id), evidence $WorkRoot" }
+if(Test-Path -LiteralPath (Join-Path $WorkRoot 'initialization_gui.json')) {
+    $guiInitialization=Get-Content -LiteralPath (Join-Path $WorkRoot 'initialization_gui.json') -Raw -Encoding UTF8|ConvertFrom-Json
+    if($guiInitialization.status -ne 'ready') { throw 'REAPER GUI initialization failed at evaluation/main window; not a BreathClick engine failure' }
+}
+if(-not(Test-Path -LiteralPath $report)) { throw "No report after host readiness; owned PID $($child.Id), sandbox $WorkRoot retained for inspection" }
 $result=Get-Content -LiteralPath $report -Raw -Encoding UTF8|ConvertFrom-Json
 $result|ConvertTo-Json -Depth 5
 Write-Host "SANDBOX: $WorkRoot; PID $($child.Id)"

@@ -33,6 +33,8 @@ public class BcsNativeInput {
 }
 '@
 $ready=Get-Content -LiteralPath (Join-Path $EvidenceRoot 'ui_ready.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$hostState=Get-Content -LiteralPath (Join-Path $EvidenceRoot 'initialization.json') -Raw -Encoding UTF8|ConvertFrom-Json
+if($hostState.status -ne 'ready' -or -not $ready.host_gate -or -not $ready.take_ready) { throw 'REAPER initialization: host, project or BreathClick panel not ready; no GUI input sent' }
 $window=[BcsNativeInput]::Find($OwnedProcessId,$ready.title)
 if($window -eq [IntPtr]::Zero) { throw 'Owned REAPER panel window not found' }
 # Never steal the pointer from an active user. Every subsequent physical
@@ -42,6 +44,12 @@ while([BcsNativeInput]::IdleMilliseconds() -lt 5000) {
     if($idleClock.Elapsed.TotalSeconds -gt 45) {throw 'Pointer remains in use; native GUI test deferred'}
     Start-Sleep -Milliseconds 100
 }
+# Recheck after the pointer-idle wait: activation can show a delayed evaluation dialog.
+$repoRoot=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$python=Join-Path (Split-Path -Parent $repoRoot) 'python_win/python.exe'
+if(-not(Test-Path -LiteralPath $python)){$python=(Get-Command python -ErrorAction Stop).Source}
+& $python (Join-Path $PSScriptRoot 'host_ready.py') --pid $OwnedProcessId --timeout 90 --report (Join-Path $EvidenceRoot 'initialization_gui.json')
+if($LASTEXITCODE -ne 0){throw 'REAPER initialization: evaluation/main window not ready; no GUI input sent'}
 $cursor=New-Object BcsNativeInput+POINT; [void][BcsNativeInput]::GetCursorPos([ref]$cursor)
 [BcsNativeInput]::ShowMain($OwnedProcessId)
 [void][BcsNativeInput]::ShowWindow($window,5)

@@ -175,4 +175,96 @@ ClickScore ClickDetector::processBlock(const float* samples, size_t count) {
     return result;
 }
 
+std::vector<Detection> detectMouthClicks(const float* x,size_t count,double rate,const DetectorSettings& settings,const std::function<bool()>& cancelled){
+    std::vector<Detection> out;
+    if(!x||count<5||!std::isfinite(rate)||rate<=0||rate>768000)return out;
+    const size_t hop=std::max<size_t>(4,static_cast<size_t>(rate*.0005));
+    const size_t frames=(count+hop-1)/hop;
+    std::vector<float> peak(frames),rms(frames),level(frames),base(frames),ratios(frames);
+    std::vector<int> active(frames);
+    for(size_t f=0;f<frames;++f){
+        if((f&255)==0 && cancelled && cancelled())return {};
+        double error=0,energy=0;size_t n=0;
+        for(size_t i=std::max<size_t>(1,f*hop);i<std::min(count-1,(f+1)*hop);++i){
+            const float d=std::abs(x[i]-.5f*(x[i-1]+x[i+1]));
+            peak[f]=std::max(peak[f],d);error+=d*d;energy+=x[i]*x[i];++n;
+        }
+        rms[f]=static_cast<float>(std::sqrt(error/std::max<size_t>(1,n)));
+        level[f]=static_cast<float>(std::sqrt(energy/std::max<size_t>(1,n)));
+    }
+    std::vector<float> context;context.reserve(128);
+    const float threshold=20.f-12.f*std::clamp(settings.clickSensitivity,0.f,1.f);
+    for(size_t f=0;f<frames;++f){
+        if((f&255)==0 && cancelled && cancelled())return {};
+        context.clear();
+        for(size_t j=f>60?f-60:0;j<std::min(frames,f+61);++j)
+            if(j+8<f||j>f+8)context.push_back(rms[j]);
+        if(context.empty())continue;
+        auto middle=context.begin()+context.size()/2;std::nth_element(context.begin(),middle,context.end());
+        base[f]=std::max(1e-5f,*middle);
+        ratios[f]=peak[f]/base[f];
+        active[f]=peak[f]>.001f && ratios[f]>threshold && rms[f]>base[f]*3;
+    }
+    for(size_t f=0;f<frames;){
+        if(cancelled && cancelled())return {};
+        if(!active[f]){++f;continue;}
+        const size_t begin=f;size_t end=f+1;
+        while(end<frames&&(active[end]||(end+1<frames&&active[end+1])))++end;
+        f=end;
+        if((end-begin)*hop>rate*settings.maxClickMs/1000.)continue;
+        size_t a=std::max<size_t>(1,begin*hop),b=std::min(count-1,end*hop);
+        float maximum=0,ratio=0;double error=0,energy=0;
+        for(size_t j=begin;j<end;++j){maximum=std::max(maximum,peak[j]);ratio=std::max(ratio,ratios[j]);error+=rms[j]*rms[j];energy+=level[j]*level[j];}
+        const float edge=std::max(base[begin]*3,maximum*.04f);
+        auto residual=[&](size_t i){return std::abs(x[i]-.5f*(x[i-1]+x[i+1]));};
+        while(a+1<b&&residual(a)<edge)++a;
+        while(b>a+1&&residual(b-1)<edge)--b;
+        a=a>1?a-1:a;b=std::min(count-1,b+1);
+        if(b<=a)continue;
+        const double ms=1000.*(b-a)/rate;
+        // Periodic glottal pulses can be narrow and very large relative to the
+        // median derivative. Compare neighbouring cycles before calling them clicks.
+        double bestCorrelation=0;size_t bestLag=0;
+        const size_t radius=static_cast<size_t>(rate*.004);
+        for(size_t lag=std::max<size_t>(1,static_cast<size_t>(rate/350));lag<std::min<size_t>(count/2,static_cast<size_t>(rate/65));lag+=2){
+            double xy=0,xx=0,yy=0;
+            const size_t from=a>radius+lag?a-radius:lag;
+            const size_t to=std::min(count-lag,b+radius);
+            for(size_t i=from;i<to;i+=4){
+                if(i>=a&&i<b)continue;
+                const double prediction=.5*(x[i-lag]+x[i+lag]);
+                xy+=x[i]*prediction;xx+=x[i]*x[i];yy+=prediction*prediction;
+            }
+            const double correlation=xy/std::sqrt(std::max(1e-24,xx*yy));
+            if(correlation>bestCorrelation){bestCorrelation=correlation;bestLag=lag;}
+        }
+        if(bestCorrelation>.85 && a>=bestLag && b+bestLag<count){
+            double mismatch=0,signal=0;
+            for(size_t i=a;i<b;++i){const double delta=x[i]-.5*(x[i-bestLag]+x[i+bestLag]);mismatch+=delta*delta;signal+=x[i]*x[i];}
+            if(mismatch<std::max(1e-15,signal)*.15)continue;
+        }
+        if(ms<.6){
+            double nearby=0;size_t neighbours=0;
+            for(size_t j=begin>4?begin-4:0;j<std::min(frames,end+4);++j)
+                if(j+1<begin||j>end){nearby+=rms[j];++neighbours;}
+            if(neighbours && maximum<6*nearby/neighbours)continue;
+        }
+        double contextEnergy=0;size_t n=0;
+        for(size_t j=begin>40?begin-40:0;j<std::min(frames,end+40);++j)
+            if(j<begin||j>=end){contextEnergy+=level[j]*level[j];++n;}
+        const double relativeContext=n?std::sqrt(contextEnergy/n)/std::max(1e-8,std::sqrt(energy/std::max<size_t>(1,end-begin))):0;
+        Detection d;d.kind=DetectionKind::Click;d.startSample=static_cast<int64_t>(a);d.endSample=static_cast<int64_t>(b);
+        d.peakScore=std::clamp(1.f-std::exp(-ratio/24.f),0.f,1.f);d.meanScore=d.peakScore;d.dspScore=d.peakScore;
+        if(error<std::max(1e-15,energy)*.035)continue; // preserve low-band/glottal attacks at every width
+        if(ms<.2)d.classification="digital_click";
+        else if(relativeContext>.35 || bestCorrelation>.6)d.classification="speech_overlap";
+        else d.classification=ms<=8?"saliva_click":"mouth_click";
+        d.reason=(d.classification=="digital_click"||d.classification=="saliva_click")?
+            "DSP: impulso rispetto al contesto locale; verificare con A/B":
+            "DSP: evento incerto o transiente vocale; revisione richiesta, nessuna riparazione automatica";
+        if(d.peakScore>=settings.clickThreshold)out.push_back(d);
+    }
+    return out;
+}
+
 } // namespace bc

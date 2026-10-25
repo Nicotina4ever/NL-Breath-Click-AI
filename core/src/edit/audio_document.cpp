@@ -906,7 +906,7 @@ AudioDocument::ReconcileResult AudioDocument::reconcileRegions(
                                  : settings.clickReductionDb;
         region.repair = detection.kind == DetectionKind::Click && settings.repairClicks;
         region.enabled = true;
-        region.approved = true;
+        region.approved = detection.kind != DetectionKind::Click || !clickReviewRequired(detection.classification);
         region.score = detection.peakScore;
         region.fromDetection = true;
         region.decisionSource = "automatic";
@@ -981,6 +981,7 @@ std::vector<float> AudioDocument::gainCurve(const EditSettings& settings, GainCu
             operation.endSample = region.endSample;
             operation.reductionDb = region.reductionDb;
             operation.repair = region.repair;
+            operation.repairMethod = region.repairMethod;
             operations.push_back(operation);
         }
 
@@ -1136,12 +1137,16 @@ bool AudioDocument::exportCorrections(const std::string& path, std::string* erro
          << "\",\n  \"sample_rate\": " << buffer_.sampleRate << ",\n  \"correzioni\": [\n";
     bool first = true;
     for (const auto& region : regions_) {
-        const bool positive = region.learningLabel == "breath_confirmed" || region.learningLabel == "missed_breath";
-        if (!region.trainingEligible || region.decisionSource != "user" || region.kind != DetectionKind::Breath ||
-            (!positive && region.learningLabel != "false_positive")) continue;
+        const bool positive = region.kind == DetectionKind::Breath ?
+            (region.learningLabel == "breath_confirmed" || region.learningLabel == "missed_breath") :
+            (region.learningLabel == "click_confirmed" || region.learningLabel == "missed_click" || region.learningLabel == "mouth_click_confirmed");
+        const bool negative = region.kind == DetectionKind::Breath ? region.learningLabel == "false_positive" :
+            (region.learningLabel == "click_false_positive" || region.learningLabel == "vocal_transient");
+        if (!region.trainingEligible || region.decisionSource != "user" ||
+            (!positive && !negative)) continue;
         if (!first) file << ",\n";
         first = false;
-        file << "    {\"tipo\": \"respiro\", \"positivo\": " << (positive ? "true" : "false")
+        file << "    {\"tipo\": \"" << (region.kind == DetectionKind::Breath ? "respiro" : "click") << "\", \"positivo\": " << (positive ? "true" : "false")
              << ", \"training_eligible\": true, \"motivo\": \"training: " << region.learningLabel
              << "\", \"inizio_s\": " << std::setprecision(17)
              << double(region.startSample) / std::max(1, buffer_.sampleRate)

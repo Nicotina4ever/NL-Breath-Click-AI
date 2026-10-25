@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "core/edit/region_editor.h"
+#include "core/dsp/click_repair.h"
 
 #include <algorithm>
 #include <cmath>
@@ -65,6 +66,7 @@ std::vector<RegionOperation> RegionEditor::regionOperationsFromDetections(
     operations.reserve(detections.size());
 
     for (const Detection& detection : detections) {
+        if(detection.kind==DetectionKind::Click && clickReviewRequired(detection.classification))continue;
         RegionOperation operation;
         operation.kind = detection.kind;
         operation.startSample = detection.startSample;
@@ -159,6 +161,7 @@ EditReport RegionEditor::applyOperations(std::vector<float>& interleaved,
     // ---- 1. riparazione dei click -------------------------------------------
     // Effettuata PRIMA dell'attenuazione: l'interpolazione lavora sul segnale
     // originale, che e' cio' che serve per ricostruire il campione mancante.
+    std::vector<std::pair<int64_t,std::vector<float>>> patches;
     for (const RegionOperation& operation : operations) {
         if (operation.kind != DetectionKind::Click) continue;
         if (!operation.repair) continue;
@@ -174,22 +177,21 @@ EditReport RegionEditor::applyOperations(std::vector<float>& interleaved,
             continue;
         }
 
-        const int64_t span = end - start + 1;
-        for (int channel = 0; channel < channels; ++channel) {
-            const size_t beforeIndex = static_cast<size_t>((start - 1) * channels + channel);
-            const size_t afterIndex = static_cast<size_t>(end * channels + channel);
-            const float a = interleaved[beforeIndex];
-            const float b = interleaved[afterIndex];
-
-            for (int64_t i = start; i < end; ++i) {
-                const float t = static_cast<float>(i - start + 1) / static_cast<float>(span);
-                interleaved[static_cast<size_t>(i * channels + channel)] = a + (b - a) * t;
-            }
+        const int64_t context=static_cast<int64_t>(std::ceil(sampleRate*.025));
+        const int64_t from=std::max<int64_t>(0,start-context),to=std::min(frameCount,end+context);
+        std::vector<float> local(interleaved.begin()+from*channels,interleaved.begin()+to*channels);
+        const auto status=repairClick(local, channels, sampleRate, start-from, end-from, operation.repairMethod);
+        if(status==ClickRepairStatus::Declined){report.declinedClicks.push_back(operation);continue;}
+        if (status==ClickRepairStatus::Invalid) {
+            ++report.clickRegionsSkipped;
+            continue;
         }
-
-        report.samplesModified += span * channels;
+        patches.push_back({start,std::vector<float>(local.begin()+(start-from)*channels,local.begin()+(end-from)*channels)});
+        report.samplesModified += (end - start) * channels;
         ++report.clickRegionsRepaired;
     }
+    // Every prediction saw the same input, including adjacent events' context.
+    for(const auto& patch:patches)std::copy(patch.second.begin(),patch.second.end(),interleaved.begin()+patch.first*channels);
 
     // ---- 2. curva di guadagno ----------------------------------------------
     const std::vector<float> gain =

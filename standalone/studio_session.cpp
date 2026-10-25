@@ -165,6 +165,7 @@ bool saveSession(const std::string& path, const SessionData& session,
             << ", \"reduction_db\": " << r.reductionDb
             << ", \"enabled\": " << (r.enabled ? "true" : "false")
             << ", \"repair\": " << (r.repair ? "true" : "false")
+            << ", \"repair_method\": \"" << escape(r.repairMethod) << "\""
             << ", \"score\": " << r.score
             << ", \"from_detection\": " << (r.fromDetection ? "true" : "false")
             << ", \"approved\": " << (r.approved ? "true" : "false")
@@ -202,6 +203,7 @@ bool saveSession(const std::string& path, const SessionData& session,
         out << "    {\"kind\": " << static_cast<int>(event.kind);
         if (event.reductionDb) out << ", \"event_reduction_db\": " << *event.reductionDb;
         out << ", \"repair\": " << (event.repair ? "true" : "false")
+            << ", \"repair_method\": \"" << escape(event.repairMethod) << "\""
             << ", \"start\": " << event.startSample
             << ", \"end\": " << event.endSample
             << ", \"score\": " << event.score
@@ -322,6 +324,7 @@ bool loadSession(const std::string& path, SessionData* output,
         if (readNumber(object, "reduction_db", value)) region.reductionDb = static_cast<float>(value);
         readBool(object, "enabled", region.enabled);
         readBool(object, "repair", region.repair);
+        readString(object, "repair_method", region.repairMethod);
         if (readNumber(object, "score", value)) region.score = static_cast<float>(value);
         readBool(object, "from_detection", region.fromDetection);
         readBool(object, "approved", region.approved);
@@ -348,6 +351,7 @@ bool loadSession(const std::string& path, SessionData* output,
         if (readNumber(object, "kind", value)) event.kind = value == 1 ? DetectionKind::Click : DetectionKind::Breath;
         if (readNumber(object, "event_reduction_db", value)) event.reductionDb = static_cast<float>(value);
         readBool(object, "repair", event.repair);
+        readString(object, "repair_method", event.repairMethod);
         if (readNumber(object, "start", value)) event.startSample = static_cast<int64_t>(value);
         if (readNumber(object, "end", value)) event.endSample = static_cast<int64_t>(value);
         if (readNumber(object, "score", value)) event.score = static_cast<float>(value);

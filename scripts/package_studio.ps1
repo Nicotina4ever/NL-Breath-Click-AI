@@ -2,7 +2,7 @@
 # Build a version-checked portable candidate from an explicitly selected build.
 [CmdletBinding()]
 param(
-    [string]$Version = '1.0.0-rc.2',
+    [string]$Version = '1.0.0-rc.3',
     [string]$BuildDirectory = '',
     [string]$DependencyRoot = '',
     [string]$ModelDirectory = '',

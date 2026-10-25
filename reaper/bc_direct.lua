@@ -16,7 +16,7 @@ local function identity(state)
     return {original_frames=state.frames,edited_frames=state.frames,
         time_map=J.array{{original_start=0,original_end=state.frames,edited_start=0,edited_end=state.frames}}}
 end
-local function mapping(ctx) return ctx.processed and ctx.state.result.map or identity(ctx.state) end
+local function mapping(ctx) return ctx.residual and identity(ctx.state) or ctx.processed and ctx.state.result.map or identity(ctx.state) end
 local function forward(map,frame)
     if frame==map.original_frames then return map.edited_frames,false end
     return X.map_frame(map,frame)
@@ -59,7 +59,8 @@ function X.context(item)
         end
     end
     st.take_guid=H.take_guid(ctx.take) -- split items receive their own native GUID
-    ctx.processed=st.result and same(path(ctx.active),st.result.path) or false
+    ctx.residual=st.residual and same(path(ctx.active),st.residual.path) or false
+    ctx.processed=ctx.residual or st.result and same(path(ctx.active),st.result.path) or false
     check(ctx.processed or same(path(ctx.active),st.source_path),'Sorgente sostituita fuori da BreathClick: revisione conservata, analizza una nuova take')
     return ctx
 end
@@ -214,14 +215,18 @@ end
 function X.apply_selected(indices,mode)
     local ctx=context(); local st=clone(ctx.state)
     selected_events(st,indices,function(e)
-        check(({attenuate=true,silence=true,cut=true,halve=true})[mode],'Modo non valido')
+        check(({attenuate=true,silence=true,cut=true,halve=true,repair=true})[mode],'Modo non valido')
         local a,b=X.view(ctx); check(e.start>=a and e['end']<=b,'Intervento oltre il trim: correggi i bordi prima di applicare')
-        e.mode=mode; e.approved=true; e.enabled=true; e.bcs_applied=true; e.bcs_edited=true
+        check(e.kind~=1 or (mode~='cut' and mode~='halve'),'I click non accorciano la durata: usa Ripara click')
+        if mode=='repair' then check(e.kind==1,'Seleziona un click');e.repair=true;e.manual_operation=false end
+        if e.kind==1 and mode~='repair' then e.repair=false end
+        e.mode=mode=='repair' and 'attenuate' or mode; e.approved=true; e.enabled=true; e.bcs_applied=true; e.bcs_edited=true
+        e.bcs_declined=nil
         e.event_reduction_db=X.settings.reduction_db; e.fade_ms=X.settings.fade_ms
     end)
     start_render({ctx},{st},mode)
 end
-function X.add_manual(label)
+function X.add_manual(label,kind)
     local created=H.guid()
     X.review(function(st,ctx)
         local a,b=reaper.GetSet_LoopTimeRange2(0,false,false,0,0,false)
@@ -229,9 +234,9 @@ function X.add_manual(label)
         check(a>=pos and b>a and b<=pos+len+1e-9,'Seleziona un intervallo dentro l\'item')
         local first,last=from_timeline(ctx,a,false),from_timeline(ctx,b,true)
         check(last>first,'La selezione cade interamente in una pausa generata')
-        st.plan.events[#st.plan.events+1]={kind=0,start=first,['end']=last,mode='attenuate',approved=true,enabled=true,
-            state='manual',source='manual',classification='manual',manual_operation=label~='missed_breath',bcs_manual=true,
-            decision_source='user',training_eligible=label=='missed_breath',learning_label=label or '',
+        st.plan.events[#st.plan.events+1]={kind=kind or 0,repair=kind==1,start=first,['end']=last,mode='attenuate',approved=true,enabled=true,
+            state='manual',source='manual',classification='manual',manual_operation=label~='missed_breath' and label~='missed_click',bcs_manual=true,
+            decision_source='user',training_eligible=label=='missed_breath' or label=='missed_click',learning_label=label or '',
             fade_ms=X.settings.fade_ms,keep_fraction=.5,bcs_id=created,bcs_edited=true,score=0}
     end)
     return created
@@ -256,16 +261,26 @@ end
 function X.label(indices,label)
     local ctx=context(); local st=clone(ctx.state); local render=false
     selected_events(st,indices,function(e)
-        check(e.kind==0,'Le etichette di apprendimento riguardano i respiri')
-        check(label~='missed_breath' or e.bcs_manual or e.source=='manual','Per un mancato crea prima una regione dalla selezione')
+        local click=label=='click_confirmed' or label=='click_false_positive' or label=='missed_click' or label=='mouth_click_confirmed' or label=='vocal_transient'
+        check(label=='editorial_exclusion' or (click and e.kind==1) or (not click and e.kind==0),'Etichetta incompatibile con la categoria selezionata')
+        check((label~='missed_breath' and label~='missed_click') or e.bcs_manual or e.source=='manual','Per un mancato crea prima una regione dalla selezione')
+        e.state=(label=='false_positive' or label=='click_false_positive' or label=='vocal_transient') and 'rejected' or label=='editorial_exclusion' and 'excluded' or 'confirmed'
         e.learning_label=label; e.training_eligible=label~='editorial_exclusion'; e.decision_source='user'; e.bcs_edited=true
         if label~='editorial_exclusion' then e.manual_operation=false end
-        if label=='false_positive' or label=='editorial_exclusion' then
+        if label=='false_positive' or label=='click_false_positive' or label=='vocal_transient' or label=='editorial_exclusion' then
             e.approved=false; render=render or e.bcs_applied; e.bcs_applied=false
         else e.approved=true; e.enabled=true; e.manual_operation=false end
     end)
     if render then start_render({ctx},{st},'etichetta '..label)
     else X.review(function(s) s.plan=st.plan end) end
+end
+function X.repair_method(indices,method)
+    check(method=='auto' or method=='linear' or method=='predictive','Algoritmo non valido')
+    local ctx=context();local st=clone(ctx.state);local applied=false
+    selected_events(st,indices,function(e)
+        check(e.kind==1,'Seleziona un click');e.repair_method=method;e.repair=true;e.bcs_edited=true;applied=applied or e.bcs_applied
+    end)
+    if applied then start_render({ctx},{st},'algoritmo de-click') else X.review(function(s)s.plan=st.plan end) end
 end
 function X.select_event(index,play)
     local ctx=X.context(); local event=ctx and ctx.state and ctx.state.plan.events[index]; check(event,'Seleziona un respiro')
@@ -285,6 +300,7 @@ local function queue(entries,mode,commit,label)
     X.project=H.project(); X.entries=entries; X.index=1; X.mode=mode; X.cancelled=false; X.last_error=nil
     for _,entry in ipairs(entries) do entry.request.direct=true end
     X.on_complete=commit; X.commit_label=label
+    X.completion_status=nil
     H.launch(entries[1]); X.busy=true; X.status=mode=='analyze' and 'Analisi in corso...' or 'Aggiornamento della take in corso...'
 end
 local function state_for(s,entry,plan)
@@ -299,7 +315,7 @@ local function state_for(s,entry,plan)
         offset=s.off,rate=s.rate,length=s.len,frames=entry.result.frames,prepared_rel=H.relative(entry.result.prepared,entry.root),
         plan=plan,user_markers=J.array(),next_marker=1}
     for _,e in ipairs(plan.events) do
-        e.bcs_id=H.guid(); e.approved=e.enabled~=false; e.training_eligible=false; e.decision_source='automatic'
+        e.bcs_id=H.guid(); e.approved=e.enabled~=false and e.classification~='speech_overlap' and e.classification~='mouth_click' and e.classification~='vocal_transient'; e.training_eligible=false; e.decision_source='automatic'
     end
     for i=0,reaper.GetNumTakeMarkers(s.take)-1 do
         local p,n,c=reaper.GetTakeMarker(s.take,i)
@@ -345,7 +361,7 @@ local function install_source(ctx,sourcepath,processed,first,last,rate)
     end
     ctx.active=ctx.take; ctx.processed=processed; reaper.SetActiveTake(ctx.take)
     local a,b=first,last
-    if processed then a=forward(st.result.map,a); b=forward(st.result.map,b) end
+    if processed then a=forward(mapping(ctx),a); b=forward(mapping(ctx),b) end
     check(b>a,'L\'intervento eliminerebbe l\'intero item visibile')
     local off=(processed and 0 or st.offset)+a/sr
     check(reaper.SetMediaItemTakeInfo_Value(ctx.take,'D_STARTOFFS',off))
@@ -356,20 +372,31 @@ local function install_source(ctx,sourcepath,processed,first,last,rate)
     reaper.UpdateItemInProject(ctx.item)
 end
 local function commit_render(entries)
-    local contexts={}
+    local contexts={};local declined=0
     for _,entry in ipairs(entries) do
         validate_chunk(entry)
         local report,err=J.read(entry.result.report); check(report,err)
         check(report.rejected_events==0 and report.edited_frames>0,'Il motore ha rifiutato il piano: take conservata')
+        for _,op in ipairs(report.operations or {}) do
+            if op.declined then
+                for _,e in ipairs(entry.next_state.plan.events) do
+                    if e.kind==op.kind and e.start==op.start and e['end']==op['end'] then e.bcs_applied=false;e.bcs_declined=op.note end
+                end
+            end
+        end
+        -- A declined auto repair remains a proposal, never a training decision.
+        if (report.declined_events or 0)>0 then entry.next_state.signature=nil end
+        declined=declined+(report.declined_events or 0)
         entry.next_state.result={path=entry.result.output,map=report}
         contexts[#contexts+1]=entry.ctx
     end
     H.transaction(X.commit_label or 'applica respiro',contexts,function()
         for _,entry in ipairs(entries) do
-            entry.ctx.state=entry.next_state
+            entry.ctx.state=entry.next_state;entry.ctx.residual=false;entry.ctx.state.residual=nil
             install_source(entry.ctx,entry.result.output,true,entry.first,entry.last,entry.rate)
         end
     end)
+    if declined>0 then X.completion_status=string.format('%d click conservati: previsione incerta. Altri interventi applicati; confronta le alternative in anteprima.',declined) end
 end
 start_render=function(contexts,states,label)
     local entries={}; local root=X.project_path()
@@ -410,6 +437,9 @@ function X.begin(mode,items)
             local request={mode='analyze',exe=X.engine(),source=st and st.source_path or s.sorgente,
                 offset=s.off,duration=s.len*s.rate,detector=X.settings.detector,reduction_db=X.settings.reduction_db,fade_ms=X.settings.fade_ms}
             if st then request.prepared=absolute(st.prepared_rel); request.source_sha256=st.source_sha256 end
+            request.detect_breath=X.settings.detect_breath~=false
+            request.detect_clicks=X.settings.detect_clicks==true
+            request.click_sensitivity=X.settings.click_sensitivity or .5
             if X.settings.profile_active then request.profile=X.settings.profile_path end
             entries[#entries+1]={snapshot=s,ctx=ctx,root=root,folder=folder,request=request}
         end
@@ -425,10 +455,30 @@ end
 function X.compare(processed)
     check(not X.busy,'Attendi il worker'); X.stop_preview()
     local ctx=context(); check(ctx.state.result,'Nessun intervento applicato')
-    if ctx.processed==processed then return end
+    if ctx.processed==processed and not ctx.residual then return end
     local a,b,rate=X.view(ctx)
     H.transaction(processed and 'ascolta Elaborato' or 'ascolta Originale',{ctx},function()
+        ctx.residual=false
         install_source(ctx,processed and ctx.state.result.path or ctx.state.source_path,processed,a,b,rate)
+    end)
+end
+function X.difference()
+    check(not X.busy and reaper.GetPlayState()==0,'Ferma il trasporto e attendi il worker')
+    local ctx=context();check(ctx.state.result,'Applica prima un intervento')
+    local root=X.project_path();local folder=H.new_job(root);local st=clone(ctx.state);local plan=clone(st.plan)
+    local a,b,rate=X.view(ctx)
+    plan.source=absolute(st.prepared_rel);plan.source_relative='';plan.preserve_duration=(st.timing or 'compact')=='sync'
+    for _,e in ipairs(plan.events) do e.approved=e.bcs_applied==true;e.enabled=e.approved end
+    local planpath=folder..'/difference.json';check(J.write(planpath,plan))
+    local entry={snapshot=H.snapshot(ctx.item),ctx=ctx,folder=folder,root=root,
+        request={mode='difference',exe=X.engine(),source=st.source_path,source_sha256=st.source_sha256,prepared=plan.source,plan=planpath}}
+    queue({entry},'difference',function(entries)
+        validate_chunk(entries[1])
+        H.transaction('ascolta solo rimosso',{ctx},function()
+            ctx.state=st;st.residual={path=entries[1].result.output};ctx.residual=true
+            install_source(ctx,st.residual.path,true,a,b,rate)
+        end)
+        X.status='SOLO RIMOSSO: differenza allineata all originale; Originale/Elaborato per tornare'
     end)
 end
 function X.export_or_train(train)

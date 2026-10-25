@@ -187,6 +187,11 @@ const char* learningLabelName(LearningLabel label) {
         case LearningLabel::FalsePositive: return "false_positive";
         case LearningLabel::MissedBreath: return "missed_breath";
         case LearningLabel::EditorialExclusion: return "editorial_exclusion";
+        case LearningLabel::ClickConfirmed: return "click_confirmed";
+        case LearningLabel::ClickFalsePositive: return "click_false_positive";
+        case LearningLabel::MissedClick: return "missed_click";
+        case LearningLabel::MouthClickConfirmed: return "mouth_click_confirmed";
+        case LearningLabel::VocalTransient: return "vocal_transient";
         default: return "unverified";
     }
 }
@@ -196,6 +201,11 @@ LearningLabel learningLabelFromName(const std::string& name) {
     if (name == "false_positive") return LearningLabel::FalsePositive;
     if (name == "missed_breath") return LearningLabel::MissedBreath;
     if (name == "editorial_exclusion") return LearningLabel::EditorialExclusion;
+    if (name == "click_confirmed") return LearningLabel::ClickConfirmed;
+    if (name == "click_false_positive") return LearningLabel::ClickFalsePositive;
+    if (name == "missed_click") return LearningLabel::MissedClick;
+    if (name == "mouth_click_confirmed") return LearningLabel::MouthClickConfirmed;
+    if (name == "vocal_transient") return LearningLabel::VocalTransient;
     return LearningLabel::Unverified;
 }
 

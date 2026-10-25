@@ -5,7 +5,7 @@ local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local J=dofile(here..'/bc_json.lua')
 local B=dofile(here..'/bcnext_core.lua')
 local R=dofile(here..'/bc_runtime.lua')
-local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15},busy=false}
+local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15,detect_breath=true,detect_clicks=false,click_sensitivity=.5},busy=false}
 local WINDOWS=package.config:sub(1,1)=='\\'
 local EXE='bc_studio_cli'..(WINDOWS and '.exe' or '')
 local KEY='P_EXT:BreathClickStudio'
@@ -58,7 +58,7 @@ function X.load_settings()
     local ok,data=pcall(J.decode,saved)
     if ok and type(data)=='table' and (data.detector=='fusion' or data.detector=='dsp')
         and type(data.reduction_db)=='number' and data.reduction_db>=-120 and data.reduction_db<=0
-        and type(data.fade_ms)=='number' and data.fade_ms>=0 and data.fade_ms<=500 then X.settings=data end
+        and type(data.fade_ms)=='number' and data.fade_ms>=0 and data.fade_ms<=500 then data.detect_breath=data.detect_breath~=false; data.detect_clicks=data.detect_clicks==true; data.click_sensitivity=tonumber(data.click_sensitivity) or .5; X.settings=data end
 end
 function X.save_settings() reaper.SetExtState('BreathClickStudio','settings',J.encode(X.settings),true) end
 function X.context(item)
@@ -448,7 +448,8 @@ function X.tick()
             if X.on_complete then X.on_complete(X.entries)
             elseif X.mode=='analyze' then commit_analysis(X.entries) else commit_render(X.entries) end
             X.busy=false
-            if X.mode~='learning' then X.status=X.mode=='analyze' and 'Analisi pronta. Correggi i bordi con mouse o selezione temporale.' or
+            if X.completion_status then X.status=X.completion_status;X.completion_status=nil
+            elseif X.mode~='learning' then X.status=X.mode=='analyze' and 'Analisi pronta. Correggi i bordi con mouse o selezione temporale.' or
                 'Intervento applicato sulla stessa take. Originale/Elaborato per A/B; Ctrl+Z annulla.' end
         end
     end,debug.traceback)

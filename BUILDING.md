@@ -51,7 +51,7 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 Sul tag RC2 sono obbligatori **33 test**. Il main successivo ne registra
-**35 su Windows completo**, includendo contratti di piattaforma e worker
+**37 sul ramo sperimentale RC3 Windows completo**, includendo contratti di piattaforma e worker
 portabile; il conteggio headless dipende dalla piattaforma.
 Il vecchio mock degli envelope P1 e' rimosso insieme all'interfaccia superata;
 l'integrazione diretta ha il proprio collaudo REAPER reale.
