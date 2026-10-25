@@ -1,60 +1,26 @@
-NL BREATH CLICK STUDIO - REAPER EDITING DIRETTO (0.2 preview)
-======================================================
+NL Breath Click Studio — integrazione REAPER
 
-Apri Apri_NL_Breath_Click_Studio.cmd: sempre UNA portable e UN profilo dedicati in
-build/reaper_sandbox/portable. Nessun deploy nell'installazione professionale,
-nessun modello duplicato, nessuna dipendenza ReaImGui/SWS.
+Guida aggiornata: installazione ZIP, ReaPack e utilizzo quotidiano
+https://github.com/Nicotina4ever/NL-Breath-Click-AI/blob/main/docs/REAPER_GUIDE.md
 
-1. Salva il progetto di prova e seleziona gli item/take audio. Analizza.
-2. Clicca dentro un respiro in REAPER, trascina una selezione temporale oppure
-   seleziona una riga del pannello. Ctrl/Shift selezionano piu' eventi.
-3. Correggi i bordi trascinando le maniglie gialle sulla waveform originale.
-   Usa selezione adotta l'intervallo di REAPER; Bordi permette valori precisi.
-   I confini di un intervento gia' applicato aggiornano subito il render.
-4. Attenua / Silenzia / Taglia / Dimezza applicano SOLO la selezione: stessa
-   take, stesso item, stessa traccia e FX esistenti. Non serve Applica incluse,
-   che rimane il comando batch. Proposti e APPLICATI sono distinti.
-5. Compatta voce accorcia l'audio successivo DENTRO l'item. Mantieni sync
-   sostituisce con pausa la porzione da rimuovere, con fade interni: durata,
-   posizioni dei respiri successivi e cue restano fissi. Gli altri item e
-   le altre tracce non si spostano: nessun Ripple Editing globale.
-6. Originale/Elaborato cambiano la sorgente della stessa take, con durata
-   corretta. Spazio avvia/ferma il contesto; Repeat viene ripristinato.
-   Ctrl+Z/Y annulla/ripete una operazione completa, incluso il render.
+Nel checkout sorgente: docs/REAPER_GUIDE.md.
+Nel pacchetto Windows: segui il README.txt incluso.
 
-APPRENDIMENTO FACOLTATIVO
-Conferma respiro: positivo verificato. Falso positivo: negativo verificato.
-Mancato: conferma una regione manuale, oppure ne crea una dalla selezione.
-Escludi/checkbox: decisione editoriale; non equivale a un falso positivo.
-Non occorre confermare individualmente tutti gli eventi per elaborarli.
+Avvio rapido RC2
+1. Installa il pacchetto REAPER Windows Beta oppure usa ReaPack.
+   La standalone non è necessaria; REAPER stesso non è incluso.
+2. Carica BreathClickStudio.lua dall'elenco Actions e apri il pannello.
+3. Salva una copia del progetto, seleziona gli item vocali e premi Analizza.
+4. Seleziona un respiro, correggi i bordi con le maniglie o con Bordi.
+5. Attenua / Silenzia / Taglia / Dimezza agiscono sulla selezione.
+6. Compatta voce accorcia dentro l'item. Mantieni sincronizzazione
+   conserva la durata. Gli altri item e le altre tracce non si spostano.
+7. Confronta Originale/Elaborato; Undo/Redo annulla o ripete l'intervento.
+   Conserva BreathClick Media insieme al progetto.
 
-Esporta etichette crea una sessione .bcnstudio.json sulla registrazione originale,
-compatibile con la standalone. Crea profilo usa le etichette esplicite degli
-item selezionati e il medesimo calibratore Core: richiede registrazioni distinte
-con classi sufficienti e validazione indipendente. Copie e take con offset
-rimangono la stessa registrazione. Il risultato .ini e' recuperabile nella
-cartella del progetto; non sostituisce automaticamente un profilo esistente.
-Carica profilo apre anche quello della standalone; Profilo lo attiva/disattiva
-per le prossime analisi. Nessun fine-tuning dei pesi ONNX.
+Le classificazioni per il profilo personale sono facoltative:
+Conferma respiro, Falso positivo, Mancato. Escludi è solo una scelta editoriale.
+Il trattamento avanzato degli schiocchi di saliva non è incluso nella RC2.
 
-ORIGINALI E RECUPERO
-Ogni passaggio viene renderizzato dalla copia originale immutabile con la
-TimeMap cumulativa in campioni. Lo stesso respiro non viene modificato due
-volte sul WAV gia' elaborato. Originali su disco intatti. Conservare BreathClick
-Media insieme al progetto: revisioni, mappe ed etichette restano nel RPP.
-I marcatori BC01 A/B sono brevi; i GUID rimangono nei metadati. Cue nei tagli
-e fuori dal trim conservano anche l'ancora originale per A/B e ripristino.
-
-Verificati offset, trim/split, rate 1 e 1.25, FX JS reali di take e traccia,
-Undo/Redo, cancellazione, rollback e riapertura. Niente stretch marker,
-section/reverse o take envelope: vengono rifiutati senza appiattirli.
-Le vecchie versioni salvate come take nella preview 0.1 restano recuperabili;
-l'editing corrente non aggiunge altre take. Serve la CLI della build corrente
-con protocollo direct_editing=2, non quella della vecchia RC2/preview.
-
-Stato, checkpoint, test e prossima prova: docs/REAPER_PROGRESS.md.
-La demo sintetica contiene una sola traccia/take e nessuna etichetta di training.
-
-Informazioni: versione, Nicola Lanci Voice Over, info@nicolalanci.com,
-www.nicolalanci.com. Sito web ed Email aprono le applicazioni predefinite;
-Esc torna al pannello senza cambiare la selezione o il progetto.
+Versione e contatti: Informazioni nel pannello.
+Nicola Lanci Voice Over — info@nicolalanci.com — www.nicolalanci.com

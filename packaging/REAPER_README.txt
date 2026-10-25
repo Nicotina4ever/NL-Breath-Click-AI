@@ -19,10 +19,9 @@ REAPACK INSTALLATION / UPDATES (internet required for first backend install)
 Import https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/main/index.xml
 in Extensions > ReaPack > Import repositories. In Browse packages find
 NL Breath Click Studio and explicitly install version 1.0.0-rc.2 (pre-release).
-ReaPack installs Lua/worker scripts and a checksum-pinned runtime manifest.
-On first use the panel downloads this REAPER ZIP, verifies SHA-256 and the
-file manifest, and installs only the engine/runtime/models/licenses. It does
-NOT assume ReaPack extracts ZIPs. Installa motore retries a failed download.
+On first use the panel downloads and checks the required engine and models.
+Wait for installation to finish before analyzing. Installa motore retries
+a failed download.
 Close/reopen the panel after ReaPack updates. Existing projects/media stay intact.
 
 FIRST USE
@@ -41,9 +40,10 @@ shared engine before first run; automatic backend installation is then skipped.
 
 LIMITS
 Release candidate/beta, Windows x64 CPU only. No native macOS/Linux/GPU package.
-No take envelopes, section/reverse sources or open recording; use a consolidated
-copy for unsupported take processing. Complex FX chains, clean Windows and
-professional perceptual quality require human validation. No accuracy gain claimed.
+No take envelopes, stretch markers, section/reverse sources or active recording;
+use a consolidated copy for unsupported take processing. Complex FX chains,
+clean Windows and professional listening still need validation. Try a copy of
+your project first. Advanced saliva-click repair is not included in RC2.
 
 LICENSES / SOURCE
 Project MPL-2.0, third parties retain their terms. See LICENSE, LICENSES and

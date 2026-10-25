@@ -1,33 +1,26 @@
 NL Breath Click Studio 1.0.0-rc.2 — avvio rapido
 
-1. Estrarre lo ZIP in una cartella scrivibile.
-2. Avviare: bc_studio.exe
-3. CLI:     bc_studio_cli.exe selftest
-4. Menu Progetto -> Apri cartella di WAV/MP3/FLAC (dialogo moderno),
-   poi Analizza tutti.
-5. Gli eventi rilevati sono gia' inclusi: correggere solo le eccezioni.
-   N/P = evento successivo/precedente, L = ascolta,
-   Canc = esclude senza cancellare, A = reincludi, R = escludi.
-6. Mouse: clic seleziona, centro trascina la regione, bordi correggono
-   inizio/fine. Pannello contestuale a destra; F1 = aiuto completo.
-7. Scegliere Attenua / Taglia / Dimezza (anche modalita' globale),
-   usare zoom, Segui cursore (menu Vista) e Anteprima.
-8. F2 = impostazioni con anteprima locale Prima/Dopo; OK/Applica/Annulla,
-   preset e profili rapidi. Le impostazioni confermate restano al riavvio.
-9. Apprendimento -> conferma esplicita di respiri/falsi positivi, poi
-   Impara dalle correzioni. Il profilo non modifica i pesi ONNX.
-10. In File -> Formato esportazione scegliere Stesso formato, WAV o MP3.
-9. Salvare il progetto e usare Progetto -> Elabora ed esporta tutti.
-   Prima dell'esportazione compare un unico riepilogo globale.
+1. Estrai tutto lo ZIP in una cartella scrivibile e apri bc_studio.exe.
+2. Dal menu Progetto apri una cartella di WAV, MP3 o FLAC.
+3. Scegli Analizza tutti i file: le proposte sono già incluse.
+4. Rivedi i respiri: trascina i bordi per correggerli, Canc per escludere,
+   A per includere di nuovo. N/P passa all'evento successivo/precedente.
+5. Seleziona Attenua, Silenzia, Taglia o Dimezza. Attenua e Silenzia
+   conservano la durata; Taglia e Dimezza accorciano la registrazione.
+6. Confronta Originale ed Elaborato. Ctrl+Z/Ctrl+Y annulla o ripete.
+7. Salva il progetto, scegli il formato di esportazione e usa
+   Progetto -> Elabora ed esporta tutti i file.
 
-Il WAV originale non viene mai sovrascritto: l'esportazione crea una copia
-atomica con report .edit.json e piano .plan.json.
+Gli originali non vengono sovrascritti. Conserva progetto, sessioni e sorgenti.
+F1: aiuto. F2: impostazioni con anteprima locale. Guida: GUIDA_STUDIO.md.
 
-Prima del collaudo leggere TESTING.md.
-Licenze e attribuzioni: THIRD_PARTY_NOTICES.md e LICENSES/.
+Windows 10/11 x64. Non servono REAPER o Python.
+Release candidate: prova una copia del lavoro e ascolta prima di una consegna.
+La riparazione avanzata degli schiocchi di saliva non è inclusa nella RC2.
 
-Versione 1.0.0-rc.2 — release candidata, non ancora validata su macchina
-pulita ne' su materiale professionale reale.
+Licenza MPL-2.0. Attribuzioni: THIRD_PARTY_NOTICES.md e LICENSES/.
+Download, guide e assistenza:
+https://github.com/Nicotina4ever/NL-Breath-Click-AI
 
-Nicola Lanci Voice Over - info@nicolalanci.com - www.nicolalanci.com
-Versione e contatti: menu Aiuto > Informazioni.
+Nicola Lanci Voice Over — info@nicolalanci.com — www.nicolalanci.com
+Versione e contatti: Aiuto -> Informazioni.

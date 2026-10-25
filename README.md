@@ -1,89 +1,109 @@
 # NL Breath Click Studio
 
-Editor audio offline Windows e integrazione REAPER per respiri e click nel
-doppiaggio e nello speakeraggio. Standalone **1.0.0-rc.2**, REAPER Windows Beta **1.0.0-rc.2**.
-Ascolto professionale e prova su Windows pulito restano necessari per la 1.0.
+**Meno interventi ripetitivi sui respiri, più tempo per ascoltare la voce.**
 
-## Download e installazione
+[Italiano](README.md) · [English](README.en.md)
 
-[Pre-release Windows 1.0.0-rc.2](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/tag/v1.0.0-rc.2):
-ZIP **Windows Standalone** e **REAPER Windows Beta**, indipendenti.
-[Installazione e ReaPack](docs/DISTRIBUTION.md) · [Redistribuzione](docs/REDISTRIBUTION.md).
-Indice ReaPack: `https://raw.githubusercontent.com/Nicotina4ever/NL-Breath-Click-AI/main/index.xml`.
-Scegliere esplicitamente la pre-release in ReaPack; la standalone non e' richiesta.
+**Windows 10/11 a 64 bit — pre-release 1.0.0-rc.2**
 
-## Funzioni
+- **[Scarica Standalone](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/download/v1.0.0-rc.2/NL_Breath_Click_Studio_Windows_Standalone_1.0.0-rc.2.zip)** — per lavorare senza REAPER.
+- **[Scarica REAPER Windows Beta](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/download/v1.0.0-rc.2/NL_Breath_Click_Studio_REAPER_Windows_Beta_1.0.0-rc.2.zip)** — per lavorare dentro REAPER.
+- [Pagina della release, note e checksum](https://github.com/Nicotina4ever/NL-Breath-Click-AI/releases/tag/v1.0.0-rc.2)
 
-- WAV/MP3/FLAC in ingresso; DSP, Respiro-en ONNX e Fusion.
-- Regioni manuali, selezione multipla, bordi modificabili, Undo/Redo.
-- Attenua, Silenzia, Taglia e Dimezza; A/B, export WAV/MP3, batch e report.
-- Progetti/sessioni e TimeMap cumulativa in campioni.
-- REAPER: applicazione immediata al singolo respiro sulla stessa take/traccia;
-  Compatta voce oppure Mantieni sincronizzazione, senza doppie tracce permanenti.
-- Calibratore personale Core condiviso: etichette esplicite e registrazioni
-  indipendenti per training/validazione. Nessun fine-tuning automatico ONNX.
+## Un aiuto per l'editing della voce
 
-Gli originali su disco rimangono intatti. Conservare i media generati insieme
-ai progetti. Esclusione editoriale e label di training sono decisioni distinte.
+NL Breath Click Studio è un programma gratuito e open source per doppiatori,
+speaker e fonici. Individua i respiri nelle registrazioni e permette di
+rivederli, attenuarli, silenziarli o accorciarli, mantenendo intatti i file originali.
+L'elaborazione audio avviene sul computer, senza caricare le registrazioni online.
 
-## Compilazione
+Su uno spot puoi abbassare un respiro troppo presente; su una lettura lunga
+puoi rivedere le proposte e correggere soltanto le eccezioni. Il lavoro in
+batch permette di trattare più file insieme. Il tempo risparmiato dipende
+dalla registrazione e dalla revisione necessaria: l'ascolto resta parte del lavoro.
 
-Windows x64, Visual Studio 2022 C++/Windows SDK, CMake 3.28.6 o successivo.
-I sorgenti delle dipendenze sono inclusi. La configurazione predefinita include
-i test e richiede Python con `tests/requirements.txt`. Per compilare la sola
-applicazione senza i test passare `-DBC_BUILD_TESTS=OFF`.
+## Quale versione scegliere?
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-build\bin\Release\bc_studio.exe
-```
+| | Standalone | REAPER Windows Beta |
+| --- | --- | --- |
+| Dove lavori | In un'applicazione dedicata | Nel tuo progetto REAPER |
+| Come inizi | Estrai lo ZIP e apri `bc_studio.exe` | Installa il pannello tramite ZIP o ReaPack |
+| Risultato | Esporti nuovi file WAV o MP3 | Applichi gli interventi alla take selezionata |
+| Serve l'altra versione? | No | No; serve REAPER, che non è incluso |
 
-La build DSP non richiede modelli privati. DLL ONNX e modello generale sono
-artefatti esterni opzionali, con hash fissati; per Fusion, test completi e
-packaging seguire [BUILDING.md](BUILDING.md).
+**Le due distribuzioni sono indipendenti.** Ciascuno ZIP contiene il proprio
+motore, i modelli e i componenti necessari. Non occorre installare Python.
+Con ReaPack il motore viene scaricato e installato al primo utilizzo.
 
-## Utilizzo
+## Cosa puoi fare nella RC2
 
-Standalone: **Importa -> Analizza -> Rivedi -> Anteprima -> Esporta**.
-[Guida operativa](docs/USER_GUIDE.md).
+- Individuare i respiri e correggerne i confini con il mouse o con valori precisi.
+- Selezionare uno o più eventi, escludere quelli da conservare e aggiungere interventi manuali.
+- Usare **Attenua**, **Silenzia**, **Taglia** e **Dimezza**, con confronto Originale/Elaborato e Undo/Redo.
+- Nella standalone: importare WAV, MP3 e FLAC, salvare il progetto ed esportare WAV o MP3, anche in batch.
+- In REAPER: intervenire sul singolo respiro nella stessa take, senza doppie tracce permanenti; scegliere se compattare la voce o mantenere la sincronizzazione.
+- Creare facoltativamente un profilo personale dalle correzioni confermate. Escludere un evento dall'editing non significa classificarlo come errore di rilevamento.
 
-REAPER: caricare `reaper/BreathClickStudio.lua` nelle azioni e scegliere la CLI
-corrente con **Motore**. Selezionare un item e analizzarlo, poi selezionare un
-respiro e premere il trattamento. [Istruzioni REAPER](reaper/LEGGIMI.txt).
-I test riusano una sola portable isolata; nessun deploy professionale automatico.
+La standalone include anche il rilevamento e il trattamento di click brevi.
+**La riparazione avanzata degli schiocchi di saliva e i nuovi controlli
+indipendenti respiri/click sono ancora in sviluppo e non fanno parte dei download RC2.**
 
-## Componenti
+## Inizia in pochi passaggi
 
-| Percorso | Responsabilita' |
-| --- | --- |
-| `core/` | Audio I/O, DSP, documento, regioni, learning e persistenza |
-| `standalone/engine/` | StudioEngine: ONNX, EditPlan, TimeMap, sessioni e progetti |
-| `standalone/`, `editor/` | GUI Windows e CLI |
-| `reaper/` | Pannello Lua, bridge CLI, test nativi |
-| `third_party/` | Sorgenti delle dipendenze; binari esclusi |
-| `scripts/` | Dipendenze, packaging e verifica ZIP |
+### Standalone
 
-Core e StudioEngine sono i punti di condivisione per NL Audio Tools.
-GUI e adapter REAPER rimangono separati; il motore non dipende da REAPER.
+1. Estrai **tutto** lo ZIP in una cartella scrivibile e apri `bc_studio.exe`.
+2. Dal menu **Progetto**, apri una cartella di registrazioni e scegli **Analizza tutti i file**.
+3. Ascolta e correggi le proposte: ad esempio, seleziona un respiro e scegli **Attenua** per abbassarlo mantenendone la durata.
+4. Confronta **Originale** ed **Elaborato**, salva il progetto ed esporta in una cartella di destinazione.
 
-## Verifica e licenze
+[Guida standalone: comandi, selezioni, salvataggio ed esportazione](docs/USER_GUIDE.md)
 
-[Test e collaudo](docs/TESTING.md), [criteri 1.0](docs/ACCEPTANCE_V1.md),
-[Mozilla Public License 2.0 (MPL-2.0)](LICENSE), [attribuzioni](THIRD_PARTY_NOTICES.md).
-Audio privato, dataset, pesi personali, modelli ONNX, output, cache e runtime
-REAPER sono esclusi dal sorgente pubblico. Storia locale di sviluppo e ramo
-destinato a GitHub rimangono separati.
+### REAPER
 
-## Autore e contatti
+1. Estrai lo ZIP REAPER e segui il `README.txt` incluso, oppure [installa con ReaPack](docs/REAPER_GUIDE.md#installazione-con-reapack).
+2. Apri il pannello **NL Breath Click Studio** dall'elenco delle azioni e analizza gli item vocali selezionati.
+3. Seleziona un respiro, correggi i bordi se necessario e applica il trattamento. **Compatta voce** accorcia il materiale dentro l'item; **Mantieni sincronizzazione** conserva la durata complessiva.
+
+I file originali restano intatti. Conserva la cartella **BreathClick Media**
+insieme al progetto REAPER per poterlo riaprire con tutti i media elaborati.
+
+[Guida REAPER: installazione, ReaPack e lavoro quotidiano](docs/REAPER_GUIDE.md)
+
+## Prima di usarlo su una consegna
+
+La RC2 è una **release candidate**, con integrazione REAPER in beta.
+Inizia da una copia del progetto e ascolta i raccordi, soprattutto dopo Taglia
+o Dimezza. Nella standalone questi comandi accorciano il file; Attenua e
+Silenzia ne conservano la durata.
+
+In REAPER l'editing diretto non supporta take con envelope, stretch marker,
+sorgenti section/reverse o registrazione in corso. Catene FX complesse e
+configurazioni di lavoro diverse richiedono una prova sul proprio sistema.
+Il collaudo su Windows pulito e l'ascolto professionale restano da completare.
+
+I pacchetti disponibili sono per **Windows x64**. Le applicazioni macOS e
+Linux non sono ancora disponibili; il lavoro sul motore multipiattaforma è separato.
+
+## Gratuità, licenza e contatti
+
+NL Breath Click Studio è gratuito e open source, con licenza
+[Mozilla Public License 2.0](LICENSE). I componenti inclusi conservano le
+proprie licenze: [attribuzioni e licenze di terze parti](THIRD_PARTY_NOTICES.md).
+REAPER è un prodotto separato, con la propria licenza.
+
+Per segnalare un problema o proporre un miglioramento, [apri una segnalazione su GitHub](https://github.com/Nicotina4ever/NL-Breath-Click-AI/issues).
+Indica versione, standalone o REAPER, passaggi per riprodurre il problema e
+messaggio visualizzato. Condividi audio soltanto se hai il diritto di renderlo pubblico.
 
 **Nicola Lanci Voice Over** · [info@nicolalanci.com](mailto:info@nicolalanci.com) ·
-[www.nicolalanci.com](https://www.nicolalanci.com).
-Versione e contatti sono disponibili in **Aiuto > Informazioni** nella
-standalone e nel pulsante **Informazioni** del pannello REAPER.
+[www.nicolalanci.com](https://www.nicolalanci.com)
 
-## Integrazione nella suite e portabilita
+Versione e contatti si trovano anche in **Aiuto → Informazioni** nella
+standalone e in **Informazioni** nel pannello REAPER.
 
-[SDK C++ e protocollo CLI/JSON](docs/INTEGRATION_API.md) ·
-[Core headless, worker POSIX e CI](docs/PORTABILITY.md).
-La GUI distribuita rimane Windows; i pacchetti della pre-release sono immutabili.
+## Per chi sviluppa
+
+[Documentazione sviluppatori](docs/DEVELOPING.md): compilazione, architettura,
+SDK/CLI, test e distribuzione. Standalone, REAPER e la futura NL Audio Suite
+condividono il motore; la suite completa non fa parte di questa release.
