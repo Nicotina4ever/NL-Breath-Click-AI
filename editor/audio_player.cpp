@@ -154,7 +154,9 @@ void AudioPlayer::stopThread() {
     }
 }
 
-void AudioPlayer::fillAndQueue(Buffer& buffer) {
+void AudioPlayer::fillAndQueue(Buffer& buffer, uint64_t generation) {
+    std::lock_guard<std::mutex> transport(transportMutex_);
+    if (!playing_.load(std::memory_order_relaxed) || generation != transportGeneration_.load()) return;
     // La copia del puntatore condiviso avviene sotto lock: cosi' il buffer
     // resta vivo per tutta la durata della copia anche se l'interfaccia lo
     // sostituisce nel frattempo.
@@ -167,8 +169,9 @@ void AudioPlayer::fillAndQueue(Buffer& buffer) {
     }
 
     const int64_t start = nextFrame_.load(std::memory_order_relaxed);
-    const int64_t available = std::max<int64_t>(0, frames - start);
+    const int64_t available = std::max<int64_t>(0, std::min(frames, endFrame_.load()) - start);
     const int64_t toCopy = std::min<int64_t>(bufferFrames_, available);
+    if (toCopy <= 0 || !samples || samples->empty()) return;
 
     int16_t* output = buffer.data.data();
     const size_t total = buffer.data.size();
@@ -202,7 +205,18 @@ void AudioPlayer::fillAndQueue(Buffer& buffer) {
     nextFrame_.store(start + toCopy, std::memory_order_relaxed);
 
     buffer.header.dwFlags &= ~WHDR_DONE;
-    waveOutWrite(device_, &buffer.header, sizeof(WAVEHDR));
+    {
+        std::lock_guard<std::mutex> lock(inFlightMutex_);
+        inFlight_.push_back(&buffer);
+    }
+    const auto written = waveOutWrite(device_, &buffer.header, sizeof(WAVEHDR));
+    if (written != MMSYSERR_NOERROR) {
+        playbackError_.store(static_cast<int>(written));
+        playing_.store(false);
+        waveOutReset(device_);
+        std::lock_guard<std::mutex> lock(inFlightMutex_);
+        inFlight_.clear();
+    }
 }
 
 void AudioPlayer::threadMain() {
@@ -210,7 +224,10 @@ void AudioPlayer::threadMain() {
         WaitForSingleObject(finishedEvent_, 20);
 
         std::vector<Buffer*> toRefill;
+        uint64_t generation;
         {
+            std::lock_guard<std::mutex> transport(transportMutex_);
+            generation = transportGeneration_.load();
             std::lock_guard<std::mutex> lock(inFlightMutex_);
 
             // Un blocco alla volta: l'evento e' a conteggio singolo e segnala il
@@ -221,23 +238,24 @@ void AudioPlayer::threadMain() {
                 inFlight_.erase(inFlight_.begin());
 
                 if (playing_.load(std::memory_order_relaxed) &&
-                    nextFrame_.load(std::memory_order_relaxed) < frames_) {
+                    nextFrame_.load(std::memory_order_relaxed) < endFrame_.load()) {
                     toRefill.push_back(buffer);
-                    inFlight_.push_back(buffer);
                 }
             }
 
             // Fine naturale: tutti i blocchi sono stati consumati.
             if (playing_.load(std::memory_order_relaxed) && inFlight_.empty() &&
-                nextFrame_.load(std::memory_order_relaxed) >= frames_) {
+                nextFrame_.load(std::memory_order_relaxed) >= endFrame_.load()) {
+                startFrame_.store(endFrame_.load());
                 playing_.store(false, std::memory_order_relaxed);
             }
         }
 
-        // La scrittura verso waveOut avviene fuori dal lock: non tocca le
-        // strutture condivise e non deve bloccare play/stop piu' del necessario.
+        // Requeue only AFTER filling, with the same transport generation.
+        // Re-adding a DONE header in the loop above can spin forever when all
+        // buffers complete together, before nextFrame has advanced.
         for (Buffer* buffer : toRefill) {
-            fillAndQueue(*buffer);
+            fillAndQueue(*buffer, generation);
         }
     }
 }
@@ -252,7 +270,7 @@ void AudioPlayer::setAudio(std::shared_ptr<const std::vector<float>> samples, in
     }
 }
 
-void AudioPlayer::play(int64_t fromFrame) {
+void AudioPlayer::play(int64_t fromFrame, int64_t untilFrame) {
 #ifdef _WIN32
     if (!opened_) return;
 
@@ -266,8 +284,13 @@ void AudioPlayer::play(int64_t fromFrame) {
     stop();
 
     const int64_t start = std::max<int64_t>(0, std::min(fromFrame, frames));
+    playbackError_.store(0);
+    const int64_t end = untilFrame < 0 ? frames : std::clamp(untilFrame, int64_t(0), frames);
+    if (end <= start) return;
+    const auto generation = transportGeneration_.load();
     startFrame_.store(start, std::memory_order_relaxed);
     nextFrame_.store(start, std::memory_order_relaxed);
+    endFrame_.store(end, std::memory_order_relaxed);
 
     playing_.store(true, std::memory_order_relaxed);
 
@@ -277,14 +300,13 @@ void AudioPlayer::play(int64_t fromFrame) {
     {
         std::lock_guard<std::mutex> lock(inFlightMutex_);
         for (auto& buffer : buffers_) {
-            if (nextFrame_.load(std::memory_order_relaxed) >= frames) break;
+            if (nextFrame_.load(std::memory_order_relaxed) >= end) break;
             primed.push_back(buffer.get());
-            inFlight_.push_back(buffer.get());
         }
     }
 
     for (Buffer* buffer : primed) {
-        fillAndQueue(*buffer);
+        fillAndQueue(*buffer, generation);
     }
 
     if (primed.empty()) {
@@ -292,6 +314,7 @@ void AudioPlayer::play(int64_t fromFrame) {
     }
 #else
     (void)fromFrame;
+    (void)untilFrame;
 #endif
 }
 
@@ -299,6 +322,8 @@ void AudioPlayer::stop() {
 #ifdef _WIN32
     if (!opened_) return;
 
+    std::lock_guard<std::mutex> transport(transportMutex_);
+    transportGeneration_.fetch_add(1);
     playing_.store(false, std::memory_order_relaxed);
 
     if (device_) {

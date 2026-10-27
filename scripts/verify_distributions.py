@@ -4,6 +4,7 @@ import argparse
 import ctypes
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import random
@@ -13,6 +14,7 @@ import subprocess
 import wave
 import zipfile
 import sys
+import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from distribution import VERSION, verify_archive
 
@@ -21,15 +23,30 @@ def main():
     parser.add_argument('--standalone',type=Path,required=True)
     parser.add_argument('--reaper',type=Path,required=True)
     parser.add_argument('--commit',required=True)
-    parser.add_argument('--work',type=Path,required=True)
+    parser.add_argument('--work',type=Path,help='Optional retained evidence directory; omit for automatically cleaned scratch')
     parser.add_argument('--report',type=Path,required=True)
-    args=parser.parse_args();work=args.work.resolve()
+    args=parser.parse_args()
+    if args.work is not None:
+        return verify(args)
+    repository=Path(__file__).resolve().parents[1]
+    scratch=(repository/'build/test_work').resolve()
+    if not scratch.is_relative_to(repository/'build'):
+        raise SystemExit('Verification scratch must stay inside the repository build directory')
+    scratch.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='distributions_',dir=scratch) as directory:
+        args.work=Path(directory)
+        return verify(args)
+
+def verify(args):
+    work=args.work.resolve()
     if work.exists() and any(work.iterdir()):raise SystemExit('Use an empty verification directory')
     work.mkdir(parents=True,exist_ok=True)
     windows=ctypes.create_unicode_buffer(32768)
     if not ctypes.windll.kernel32.GetWindowsDirectoryW(windows,len(windows)):raise OSError('Cannot resolve Windows directory')
     env=os.environ.copy();env['SystemRoot']=windows.value;env['WINDIR']=windows.value;env['PATH']=os.path.join(windows.value,'System32')
     env['APPDATA']=str(work/'profile');env['LOCALAPPDATA']=str(work/'local');env['PYTHONDONTWRITEBYTECODE']='1'
+    (work/'temp').mkdir()
+    env['TEMP']=env['TMP']=str(work/'temp')
     for key in list(env):
         if key.startswith(('BC_','NL_AUDIO_')):env.pop(key)
     results=[]
@@ -72,7 +89,58 @@ def main():
                 pos+=8+size+(size&1)
             assert data_size//block==132000,(kind,detector,data_size,block)
         assert hashlib.sha256(fixture.read_bytes()).hexdigest()==original
-        results.append(dict(product=kind,status='passed',files=len(entries),capabilities=caps,dsp_and_fusion=True,original_unchanged=True,following_duration_frames=132000))
+        mouth_click=False
+        if caps.get('mouth_click_engine',0)>=1:
+            # Exercise the installed product, never the development CLI or another
+            # product's installation. No personal audio or human training labels.
+            click_source=folder/'voice_impulse.wav'
+            frames=48000;impulse=16800
+            clean=[int(2400*math.sin(2*math.pi*223*i/48000)) for i in range(frames)]
+            samples=clean.copy();samples[impulse]+=18000
+            # Float reference keeps the exact residual identity separate from
+            # PCM16 export quantization (already covered by the codec suite).
+            pcm=struct.pack('<'+'f'*frames,*(s/32768 for s in samples))
+            click_source.write_bytes(b'RIFF'+struct.pack('<I',36+len(pcm))+b'WAVEfmt '+
+                struct.pack('<IHHIIHH',16,3,1,48000,48000*4,4,32)+b'data'+struct.pack('<I',len(pcm))+pcm)
+            click_sha=hashlib.sha256(click_source.read_bytes()).hexdigest()
+            detected={}
+            for mode,breaths,clicks in [('breaths',1,0),('clicks',0,1),('both',1,1)]:
+                plan_path=folder/(mode+'_independent.json')
+                call('plan',click_source,'--out',plan_path,'--breaths',breaths,'--clicks',clicks,'--detector','dsp')
+                detected[mode]=json.loads(plan_path.read_text(encoding='utf-8-sig'))
+            assert all(e['kind']==0 for e in detected['breaths']['events'])
+            assert detected['clicks']['events'] and all(e['kind']==1 for e in detected['clicks']['events'])
+            click_ranges=lambda p:[(e['start'],e['end']) for e in p['events'] if e['kind']==1]
+            assert click_ranges(detected['clicks'])==click_ranges(detected['both'])
+            plan=detected['clicks'];plan['events']=[dict(kind=1,start=impulse-2,end=impulse+3,
+                enabled=True,approved=True,repair=True,repair_method='auto',mode='attenuate',
+                decision_source='review_harness',training_eligible=False)]
+            plan_path=folder/'click_repair.json';plan_path.write_text(json.dumps(plan),encoding='utf-8')
+            target=folder/'click_output';target.mkdir()
+            call('edit',click_source,'--plan',plan_path,'--out-dir',target)
+            call('difference',click_source,'--plan',plan_path,'--out-dir',target)
+            def read_float(path):
+                raw=path.read_bytes();pos=12
+                fmt=None
+                while pos+8<=len(raw):
+                    tag,size=struct.unpack_from('<4sI',raw,pos)
+                    if tag==b'fmt ':fmt=struct.unpack_from('<HHIIHH',raw,pos+8)
+                    if tag==b'data':
+                        assert fmt and fmt[0]==3 and fmt[1]==1 and fmt[5]==32,'Expected mono float reference output'
+                        return struct.unpack_from('<'+'f'*(size//4),raw,pos+8)
+                    pos+=8+size+(size&1)
+                raise AssertionError('Missing rendered PCM')
+            edited=read_float(target/'voice_impulse_edit.wav')
+            removed=read_float(target/'voice_impulse_difference.wav')
+            assert len(edited)==len(removed)==frames
+            assert abs(edited[impulse]-clean[impulse]/32768)<.001
+            for i,(e,r) in enumerate(zip(edited,removed)):
+                original_sample=samples[i]/32768
+                assert abs(r-(original_sample-e))<1e-7
+                if not impulse-2<=i<impulse+3:assert e==original_sample
+            assert hashlib.sha256(click_source.read_bytes()).hexdigest()==click_sha
+            mouth_click=True
+        results.append(dict(product=kind,status='passed',files=len(entries),capabilities=caps,dsp_and_fusion=True,original_unchanged=True,following_duration_frames=132000,mouth_click_independent_modes_and_residual=mouth_click))
     # ZIP installer and upgrades preserve any unmanaged user work.
     resource=work/'resource';resource.mkdir();(resource/'reaper.ini').write_text('[REAPER]\n',encoding='ascii')
     command=['powershell','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',str(work/'reaper/Install_REAPER.ps1'),'-ResourceDirectory',str(resource)]

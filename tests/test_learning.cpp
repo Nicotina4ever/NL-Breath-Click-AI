@@ -174,6 +174,31 @@ int main() {
         return fail("profile roundtrip");
     }
 
+    auto clicks=examples;
+    for(auto& e:clicks) {
+        if(e.label==bc::LearningLabel::FalsePositive)e.label=bc::LearningLabel::VocalTransient;
+        else if(e.label==bc::LearningLabel::MissedBreath)e.label=bc::LearningLabel::MissedClick;
+        else e.label=bc::LearningLabel::MouthClickConfirmed;
+        e.features.durationMs/=25;
+    }
+    clicks.insert(clicks.end(),examples.begin(),examples.end());
+    bc::PersonalProfile clickProfile;
+    if(!bc::trainPersonalProfile(clicks,clickProfile,&error,bc::DetectionKind::Click) ||
+        clickProfile.kind!=bc::DetectionKind::Click || clickProfile.positives!=8 || clickProfile.negatives!=8 ||
+        clickProfile.validationMisses!=2 || clickProfile.validationFalsePositives!=0)
+        return fail("independent click calibrator or missed-click metrics");
+    auto alteredClicks=clicks;
+    for(auto& e:alteredClicks)if(e.sourcePath=="A.wav")e.features.rmsDb+=1;
+    bc::PersonalProfile independentClicks;
+    if(!bc::trainPersonalProfile(alteredClicks,independentClicks,&error,bc::DetectionKind::Click) ||
+        independentClicks.weightScore!=clickProfile.weightScore || independentClicks.threshold!=clickProfile.threshold)
+        return fail("click holdout leaked into weights/threshold");
+    if(!bc::savePersonalProfile(path,clickProfile,&error) || !bc::loadPersonalProfile(path,loaded,&error) ||
+        loaded.kind!=bc::DetectionKind::Click || !loaded.accepts(clicks.front().features))return fail("click profile roundtrip");
+    if(bc::trainPersonalProfile(examples,independentClicks,&error,bc::DetectionKind::Click))return fail("breath truth trained click profile");
+    for(auto& e:alteredClicks)e.recordingId="same-recording";
+    if(bc::trainPersonalProfile(alteredClicks,independentClicks,&error,bc::DetectionKind::Click))return fail("click copies leaked across split");
+
     // Etichette esplicite: solo confermati e falsi positivi entrano negli
     // esempi; l'esclusione editoriale e il non verificato restano fuori.
     bc::AudioDocument labelled;
@@ -193,7 +218,25 @@ int main() {
     addLabelled("editorial_exclusion");
     addLabelled("");
     const auto labelledExamples = bc::collectLearningExamples(labelled);
+    bc::EditRegion feedbackOnly;
+    feedbackOnly.startSample=20000;feedbackOnly.endSample=20553;
+    feedbackOnly.repairFeedback="unsatisfactory";feedbackOnly.repairFeedbackMethod="predictive";
+    labelled.addRegion(feedbackOnly);
+    if(bc::collectLearningExamples(labelled).size()!=labelledExamples.size())return fail("repair feedback became a training label");
+    labelled.undo();
     if (labelledExamples.size() != 2) return fail("explicit labels filtering");
+    bc::EditRegion clickTruth;
+    clickTruth.kind=bc::DetectionKind::Click;clickTruth.startSample=3000;clickTruth.endSample=3200;
+    clickTruth.trainingEligible=true;clickTruth.decisionSource="user";clickTruth.learningLabel="mouth_click_confirmed";
+    labelled.addRegion(clickTruth);
+    if(bc::collectLearningExamples(labelled,bc::DetectionKind::Click).size()!=1 ||
+        bc::collectLearningExamples(labelled).size()!=2)return fail("label categories contaminated");
+    clickTruth.learningLabel="false_positive";labelled.addRegion(clickTruth);
+    const auto legacyClicks=bc::collectLearningExamples(labelled,bc::DetectionKind::Click);
+    if(legacyClicks.size()!=2 || legacyClicks.back().label!=bc::LearningLabel::ClickFalsePositive)
+        return fail("legacy generic negative not resolved by region category");
+    labelled.undo();
+    labelled.undo();
     int positiveLabels = 0;
     int negativeLabels = 0;
     for (const auto& example : labelledExamples) {

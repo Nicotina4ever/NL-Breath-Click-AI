@@ -5,8 +5,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <chrono>
+#include <condition_variable>
 #include <filesystem>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -124,7 +129,7 @@ int frameCount(int64_t samples) {
 
 std::vector<float> logMelPower(const std::vector<float>& signal,
                                const std::vector<float>& filterbank,
-                               int frames) {
+                               int frames, const AnalysisControl* control) {
     const int bins = kFft / 2 + 1;
     kiss_fftr_cfg config = kiss_fftr_alloc(kFft, 0, nullptr, nullptr);
     if (!config) return {};
@@ -140,6 +145,10 @@ std::vector<float> logMelPower(const std::vector<float>& signal,
 
     const int pad = kFft / 2;
     for (int frame = 0; frame < frames; ++frame) {
+        if (frame % 128 == 0 && control) {
+            control->report(.45f * frame / frames, "Analisi della voce");
+            if (control->cancelled()) { kiss_fftr_free(config); return {}; }
+        }
         const int64_t start = static_cast<int64_t>(frame) * kHop - pad;
         for (int i = 0; i < kFft; ++i) {
             const int64_t index = start + i;
@@ -160,6 +169,10 @@ std::vector<float> logMelPower(const std::vector<float>& signal,
     std::vector<float> mel(static_cast<size_t>(frames * kMelBands), 0.0f);
     float maximum = 0.0f;
     for (int frame = 0; frame < frames; ++frame) {
+        if (frame % 128 == 0 && control) {
+            control->report(.45f + .45f * frame / frames, "Analisi della voce");
+            if (control->cancelled()) return {};
+        }
         for (int m = 0; m < kMelBands; ++m) {
             float sum = 0.0f;
             for (int k = 0; k < bins; ++k) {
@@ -180,10 +193,15 @@ std::vector<float> logMelPower(const std::vector<float>& signal,
     return mel;
 }
 
-std::vector<float> zeroCrossingRate(const std::vector<float>& signal, int frames) {
+std::vector<float> zeroCrossingRate(const std::vector<float>& signal, int frames,
+                                    const AnalysisControl* control) {
     std::vector<float> zcr(static_cast<size_t>(frames), 0.0f);
     const int pad = kFft / 2;
     for (int frame = 0; frame < frames; ++frame) {
+        if (frame % 128 == 0 && control) {
+            control->report(.9f + .05f * frame / frames, "Analisi della voce");
+            if (control->cancelled()) return {};
+        }
         const int64_t start = static_cast<int64_t>(frame) * kHop - pad;
         int crossings = 0;
         for (int i = 1; i < kFft; ++i) {
@@ -207,7 +225,11 @@ std::vector<float> zeroCrossingRate(const std::vector<float>& signal, int frames
 
 bool buildFeatures(const std::vector<float>& mono, int sampleRate,
                    std::vector<float>* feature, int* frames,
-                   std::string* error) {
+                   std::string* error, const AnalysisControl* control) {
+    if (control) {
+        control->report(-1, "Preparazione dell'analisi vocale");
+        if (control->cancelled(error)) return false;
+    }
     if (mono.empty()) {
         if (error) *error = "audio vuoto per Respiro-en";
         return false;
@@ -223,6 +245,7 @@ bool buildFeatures(const std::vector<float>& mono, int sampleRate,
         }
         resampler.process(mono.data(), mono.size(), resampled);
     }
+    if (control && control->cancelled(error)) return false;
     const int count = frameCount(static_cast<int64_t>(resampled.size()));
     if (count < 2) {
         if (error) *error = "audio troppo breve per Respiro-en";
@@ -230,8 +253,10 @@ bool buildFeatures(const std::vector<float>& mono, int sampleRate,
     }
 
     static const std::vector<float> filters = makeMelFilterbank();
-    std::vector<float> mel = logMelPower(resampled, filters, count);
-    std::vector<float> zcr = zeroCrossingRate(resampled, count);
+    std::vector<float> mel = logMelPower(resampled, filters, count, control);
+    if (control && control->cancelled(error)) return false;
+    std::vector<float> zcr = zeroCrossingRate(resampled, count, control);
+    if (control && control->cancelled(error)) return false;
     if (mel.empty()) {
         if (error) *error = "mel-spettrogramma non calcolabile";
         return false;
@@ -239,6 +264,10 @@ bool buildFeatures(const std::vector<float>& mono, int sampleRate,
 
     feature->assign(static_cast<size_t>(kChannels * kMelBands * count), 0.0f);
     for (int frame = 0; frame < count; ++frame) {
+        if (frame % 128 == 0 && control) {
+            control->report(.95f + .05f * frame / count, "Analisi della voce");
+            if (control->cancelled(error)) return false;
+        }
         double mean = 0.0;
         for (int m = 0; m < kMelBands; ++m) {
             mean += mel[static_cast<size_t>(frame * kMelBands + m)];
@@ -355,20 +384,26 @@ bool respiroEnAvailable(const std::string& modelPath, std::string* resolvedPath,
 bool respiroEnDetect(const std::vector<float>& mono, int sampleRate,
                      const std::string& modelPath, float threshold,
                      std::vector<AiEvent>* events, std::vector<float>* probabilities,
-                     std::string* error) {
+                     std::string* error, const AnalysisControl* control) {
     if (events) events->clear();
     if (probabilities) probabilities->clear();
 
+    if (control && control->cancelled(error)) return false;
     std::string resolved;
     if (!respiroEnAvailable(modelPath, &resolved, error)) return false;
 
     std::vector<float> feature;
     int frames = 0;
-    if (!buildFeatures(mono, sampleRate, &feature, &frames, error)) return false;
+    if (!buildFeatures(mono, sampleRate, &feature, &frames, error, control)) return false;
 
     OrtHolder holder;
+    if (control) {
+        control->report(-1, "Caricamento del modello vocale");
+        if (control->cancelled(error)) return false;
+    }
     if (!loadRuntime(holder, error)) return false;
     if (!createSession(holder, resolved, error)) return false;
+    if (control && control->cancelled(error)) return false;
     const OrtApi* api = holder.api;
 
     const int64_t featureDims[4] = {1, kChannels, kMelBands, frames};
@@ -398,17 +433,65 @@ bool respiroEnDetect(const std::vector<float>& mono, int sampleRate,
     }
     api->ReleaseMemoryInfo(memory);
 
+    auto releaseValue = [api](OrtValue* p) { if (p) api->ReleaseValue(p); };
+    std::unique_ptr<OrtValue, decltype(releaseValue)> featureGuard(featureValue, releaseValue);
+    std::unique_ptr<OrtValue, decltype(releaseValue)> lengthGuard(lengthValueOrt, releaseValue);
+    // ORT supports terminating an active Run from another thread. Join the
+    // observer before releasing its options/session; never detach inference.
+    OrtRunOptions* rawOptions = nullptr;
+    if (control && !checkStatus(api, api->CreateRunOptions(&rawOptions),
+                                "opzioni analisi", error)) {
+        return false;
+    }
+    auto releaseOptions = [api](OrtRunOptions* p) { if (p) api->ReleaseRunOptions(p); };
+    std::unique_ptr<OrtRunOptions, decltype(releaseOptions)> options(rawOptions, releaseOptions);
+    struct RunObserver {
+        std::mutex mutex;
+        std::condition_variable wake;
+        bool done = false;
+        std::thread thread;
+        ~RunObserver() {
+            { std::lock_guard<std::mutex> lock(mutex); done = true; }
+            wake.notify_one();
+            if (thread.joinable()) thread.join();
+        }
+    };
+
     const char* inputNames[2] = {"feature", "length"};
     const char* outputNames[1] = {"breath_probability"};
     OrtValue* inputValues[2] = {featureValue, lengthValueOrt};
     OrtValue* outputValue = nullptr;
-    const bool runOk = checkStatus(api, api->Run(holder.session, nullptr, inputNames,
+    bool runOk = false;
+    {
+        RunObserver observer;
+        if (control) {
+            control->report(-1, "Rilevamento dei respiri");
+            if (!control->cancelled()) observer.thread = std::thread([&] {
+                std::unique_lock<std::mutex> lock(observer.mutex);
+                while (!observer.done) {
+                    if (control->cancelled()) {
+                        // The only operation performed by this observer.
+                        OrtStatus* status = api->RunOptionsSetTerminate(rawOptions);
+                        if (status) api->ReleaseStatus(status);
+                        break;
+                    }
+                    observer.wake.wait_for(lock, std::chrono::milliseconds(20), [&] { return observer.done; });
+                }
+            });
+        }
+        if (!control || !control->cancelled())
+            runOk = checkStatus(api, api->Run(holder.session, rawOptions, inputNames,
                                                 inputValues, 2, outputNames, 1,
                                                 &outputValue),
                                   "inferenza Respiro-en", error);
-    api->ReleaseValue(featureValue);
-    api->ReleaseValue(lengthValueOrt);
-    if (!runOk) return false;
+    }
+    featureGuard.reset();
+    lengthGuard.reset();
+    if (!runOk || (control && control->cancelled(error))) {
+        if (control) control->cancelled(error);
+        if (outputValue) api->ReleaseValue(outputValue);
+        return false;
+    }
 
     OrtTensorTypeAndShapeInfo* shapeInfo = nullptr;
     if (!checkStatus(api, api->GetTensorTypeAndShape(outputValue, &shapeInfo),
@@ -467,6 +550,27 @@ bool respiroEnDetect(const std::vector<float>& mono, int sampleRate,
         }
     }
     return true;
+}
+
+std::vector<AiEvent> shortBreathReviewProposals(const std::vector<float>& probabilities, float threshold) {
+    std::vector<AiEvent> out;
+    if (!std::isfinite(threshold) || threshold<0 || threshold>1) return out;
+    int64_t start=-1;
+    float peak=0;
+    for (size_t i=0;i<=probabilities.size();++i) {
+        if (i<probabilities.size() && probabilities[i]>threshold) {
+            if (start<0) { start=static_cast<int64_t>(i); peak=0; }
+            peak=std::max(peak,probabilities[i]);
+        } else if (start>=0) {
+            const auto length=static_cast<int64_t>(i)-start;
+            // A short run touching the model's padded recording boundary has
+            // incomplete context (including clipped consonant attacks).
+            if (start>=3 && i+3<=probabilities.size() && length>=8 && length<=20 &&
+                peak>=std::max(.2f,threshold)) out.push_back({start,static_cast<int64_t>(i),peak});
+            start=-1;
+        }
+    }
+    return out;
 }
 
 } // namespace studio

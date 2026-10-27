@@ -7,6 +7,7 @@
 #  della waveform con 600 regioni: e' la parte che rendeva scattoso il drag.
 # ============================================================================
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -51,7 +52,7 @@ for ($i = 0; $i -lt 50; $i++) {
     Start-Sleep -Milliseconds 200
     $proc.Refresh()
     if ($proc.HasExited) { throw "studio terminato ($($proc.ExitCode))" }
-    if ($proc.MainWindowHandle -ne [IntPtr]::Zero) { $hwnd = $proc.MainWindowHandle; break }
+    if (([BcTestWindow]::Find($proc.Id)) -ne [IntPtr]::Zero) { $hwnd = ([BcTestWindow]::Find($proc.Id)); break }
 }
 if ($hwnd -eq [IntPtr]::Zero) { throw 'finestra GUI non comparsa' }
 Start-Sleep -Milliseconds 900

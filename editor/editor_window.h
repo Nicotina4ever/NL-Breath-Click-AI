@@ -69,10 +69,7 @@ public:
     bool analyzeAllTracks();
     void approveAllTracks();
     int exportAllTo(const std::string& outputDirectory, bool showSummary);
-    void setStudioMode(bool enabled) {
-        studioMode_ = enabled;
-        view_.setGainCurveMode(enabled ? GainCurveMode::StudioSource : GainCurveMode::Legacy);
-    }
+    void setStudioMode(bool enabled);
 
 private:
     static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -109,6 +106,7 @@ private:
     // Pannello contestuale della regione, legenda e zoom verticale.
     void createRegionPanel();
     void layoutRegionPanel();
+    void scrollRegionPanel(int code, int position = 0);
     void refreshRegionPanel(bool force = false);
     void commandRegionEditBounds();
     void commandVerticalZoom(int step);
@@ -124,6 +122,9 @@ private:
     void rebuildFileList();
     void onFileListSelectionChanged();
     bool analyzeActiveTrack(bool interactive, std::string* error);
+    studio::AnalysisControl analysisControl_;
+    bool analysisBusy_ = false;
+    bool analysisCloseRequested_ = false;
     bool exportActiveTrackTo(const std::string& outputPath, std::string* error);
     bool saveProjectTo(const std::string& path, std::string* error);
     bool loadProjectFrom(const std::string& path, std::string* error);
@@ -141,9 +142,9 @@ private:
     AudioDocument* trackDocument(int index);
     const AudioDocument* trackDocument(int index) const;
     void commandLearningLabel(LearningLabel label);
-    void commandTrainPersonalProfile();
-    void commandActivatePersonalProfile(bool activate);
-    void commandLearningStatus();
+    void commandTrainPersonalProfile(DetectionKind kind = DetectionKind::Breath);
+    void commandActivatePersonalProfile(bool activate, DetectionKind kind = DetectionKind::Breath);
+    void commandLearningStatus(DetectionKind kind = DetectionKind::Breath);
     void commandManualSelection(int mode);
     void commandTimeBounds();
     void commandClicksEnabled(bool enabled);
@@ -157,12 +158,13 @@ private:
     void commandRegionKeepFraction();
     void commandRegionKeepPreset(double fraction);
     void commandRegionMarginPreset(double marginMs);
-    void commandAuditionRegion();
+    void commandAuditionRegion(int signal = 0);
     void commandRegionStep(int delta);
     void commandRegionSelectAll();
     void commandRegionClearSelection();
     void commandRegionDecisionAll(bool approve);
     void commandPreview();
+    bool ensurePreviewCurrent();
     void commandApplyPreview();
     void commandExportPlan();
     void commandAnalyze();
@@ -306,6 +308,7 @@ private:
 
     // Pannello contestuale dell'evento selezionato.
     HWND regionPanel_ = nullptr;
+    HWND detectBreathQuick_ = nullptr, detectClicksQuick_ = nullptr, detectorQuick_ = nullptr;
     HWND regionTitle_ = nullptr;
     HWND regionCounters_ = nullptr;
     HWND regionState_ = nullptr;
@@ -318,6 +321,10 @@ private:
     HWND regionApprove_ = nullptr;
     HWND regionReject_ = nullptr;
     HWND regionModeButtons_[3] = {};
+    HWND regionRepairButtons_[4] = {};
+    struct RegionPanelControl { HWND window; int x, y, width, height; };
+    std::vector<RegionPanelControl> regionPanelControls_;
+    int regionPanelScroll_ = 0;
     HWND verticalZoomSlider_ = nullptr;
     HWND verticalZoomValue_ = nullptr;
     HWND legend_ = nullptr;
@@ -328,8 +335,12 @@ private:
     bool regionPanelUpdating_ = false;
     bool followPlayhead_ = true;
     bool followAutoScroll_ = false;
+    bool regionAudition_ = false;
+    int regionAuditionSignal_ = 0;
     PersonalProfile personalProfile_;
     bool personalProfileActive_ = false;
+    PersonalProfile clickProfile_;
+    bool clickProfileActive_ = false;
 
     std::string projectPath_;
     bool projectDirty_ = false;
@@ -341,6 +352,7 @@ private:
 
     std::shared_ptr<const std::vector<float>> renderedAudio_;
     std::shared_ptr<const std::vector<float>> originalAudio_;
+    uint64_t originalAudioRevision_ = 0;
     bool abOriginal_ = false;
     double editFadeMs_ = 15.0;
     // Crossfade predefinito della GUI per Taglia/Dimezza; CLI e piani
@@ -364,8 +376,9 @@ private:
     studio::EditResult preview_;
     std::shared_ptr<const std::vector<float>> previewAudio_;
     bool hasPreview_ = false;
-    int engineApplied_ = -1, engineRejected_ = -1;
+    int engineApplied_ = -1, engineRejected_ = -1, engineDeclined_ = -1;
     std::string previewSignature_;
+    uint64_t previewAudioRevision_ = 0;
     bool buildEditPlan(studio::EditPlan* plan, std::string* error);
 
     // Riempimento del silenzio: durata predefinita in secondi.
@@ -375,7 +388,7 @@ private:
     static constexpr int kTimerRender = 2;
     static constexpr int kTimerAutosave = 3;
     static constexpr int kLegendHeight = 22;
-    static constexpr int kToolbarHeight = 40;
+    static constexpr int kToolbarHeight = 72;
     static constexpr int kStatusHeight = 22;
 };
 

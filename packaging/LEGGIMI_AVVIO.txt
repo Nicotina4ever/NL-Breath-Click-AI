@@ -1,22 +1,28 @@
-NL Breath Click Studio 1.0.0-rc.2 — avvio rapido
+NL Breath Click Studio 1.0.0-rc.3 — prova sperimentale locale
 
 1. Estrai tutto lo ZIP in una cartella scrivibile e apri bc_studio.exe.
 2. Dal menu Progetto apri una cartella di WAV, MP3 o FLAC.
 3. Scegli Analizza tutti i file: le proposte sono già incluse.
+   F2 permette di attivare respiri, click oppure entrambi. I click incerti
+   richiedono revisione prima della riparazione.
 4. Rivedi i respiri: trascina i bordi per correggerli, Canc per escludere,
    A per includere di nuovo. N/P passa all'evento successivo/precedente.
 5. Seleziona Attenua, Silenzia, Taglia o Dimezza. Attenua e Silenzia
    conservano la durata; Taglia e Dimezza accorciano la registrazione.
-6. Confronta Originale ed Elaborato. Ctrl+Z/Ctrl+Y annulla o ripete.
+6. Per i click usa Ripara click; confronta Originale, Elaborato e Solo rimosso.
+   Auto conserva l'audio se la ricostruzione è rischiosa.
+   Ctrl+Z/Ctrl+Y annulla o ripete.
 7. Salva il progetto, scegli il formato di esportazione e usa
    Progetto -> Elabora ed esporta tutti i file.
 
 Gli originali non vengono sovrascritti. Conserva progetto, sessioni e sorgenti.
-F1: aiuto. F2: impostazioni con anteprima locale. Guida: GUIDA_STUDIO.md.
+F1: aiuto. F2: impostazioni con anteprima locale. Prova d'ascolto: PROVA_RC3.md.
+GUIDA_STUDIO.md descrive i comandi di base della RC2.
 
 Windows 10/11 x64. Non servono REAPER o Python.
 Release candidate: prova una copia del lavoro e ascolta prima di una consegna.
-La riparazione avanzata degli schiocchi di saliva non è inclusa nella RC2.
+La riparazione degli schiocchi di saliva è sperimentale e da ascoltare.
+Questa RC3 non sostituisce la RC2 pubblicata e non è la versione stabile.
 
 Licenza MPL-2.0. Attribuzioni: THIRD_PARTY_NOTICES.md e LICENSES/.
 Download, guide e assistenza:

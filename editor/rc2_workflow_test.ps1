@@ -1,6 +1,8 @@
-# SPDX-License-Identifier: MPL-2.0
+﻿# SPDX-License-Identifier: MPL-2.0
 # Real Win32 controls, mouse capture, painted pixels and persisted editor state.
+param([string]$AudioFixture='')
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 Add-Type -ReferencedAssemblies System.Drawing @"
 using System;
 using System.Drawing;
@@ -11,12 +13,14 @@ public class Rc2Gui {
  [DllImport("user32.dll")] public static extern IntPtr SendMessageW(IntPtr h,uint m,IntPtr w,IntPtr l);
  [DllImport("user32.dll")] public static extern bool PostMessageW(IntPtr h,uint m,IntPtr w,IntPtr l);
  [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h,out Rect r);
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h,IntPtr p);
  [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint t,ref Info i);
  [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr h);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint f);
  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h,uint command);
  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr h);
  [DllImport("user32.dll",EntryPoint="SendMessageW",CharSet=CharSet.Unicode)] public static extern IntPtr SendText(IntPtr h,uint m,IntPtr w,string text);
  [DllImport("user32.dll")] public static extern bool EnumThreadWindows(uint id,EnumProc p,IntPtr l);
  public delegate bool EnumProc(IntPtr h,IntPtr l);
@@ -27,6 +31,24 @@ public class Rc2Gui {
    for(IntPtr h=GetWindow(dialog,5);h!=IntPtr.Zero;h=GetWindow(h,2)) {
      var s=new System.Text.StringBuilder(512); GetWindowTextW(h,s,512); result+="["+s+"] ";
    } return result;
+ }
+ public static string Text(IntPtr h) {
+   var s=new System.Text.StringBuilder(512); GetWindowTextW(h,s,512);return s.ToString();
+ }
+ public static void OutcomeFixture(string path) {
+   const int sr=48000,n=sr*4;
+   var rng=new Random(553);
+   using(var w=new BinaryWriter(File.Create(path))) {
+     w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));w.Write(36+n*4);
+     w.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "));w.Write(16);
+     w.Write((short)3);w.Write((short)1);w.Write(sr);w.Write(sr*4);w.Write((short)4);w.Write((short)32);
+     w.Write(System.Text.Encoding.ASCII.GetBytes("data"));w.Write(n*4);
+     for(int i=0;i<n;i++) {
+       float x=i<sr*3/2 ? .02f : (float)(.04*Math.Sin(2*Math.PI*173*i/sr)+(rng.NextDouble()-.5)*.06);
+       if(i==sr)x+=.6f;
+       w.Write(x);
+     }
+   }
  }
  public static string Windows(IntPtr parent) {
    string result="";
@@ -88,11 +110,20 @@ public class Rc2Gui {
 "@
 $root=Split-Path -Parent $PSScriptRoot
 $bin=if($env:BC_TEST_BIN){$env:BC_TEST_BIN}else{Join-Path $root 'build\bin\Release'}
-$work=Join-Path $env:TEMP ('bc_rc2_gui_'+[guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $work | Out-Null
+. (Join-Path $root 'scripts/test_workspace.ps1')
+$workspace=New-BcTestWorkspace 'rc2_gui';$work=$workspace.Path;$passed=$false
+$env:APPDATA=Join-Path $work 'profile'
+New-Item -ItemType Directory -Path $env:APPDATA | Out-Null
 $wav=Join-Path $work 'fixture.wav'
-& (Join-Path $bin 'bc_cli.exe') gen-test $wav --quiet | Out-Null
-if($LASTEXITCODE -ne 0){throw 'fixture failed'}
+if ($AudioFixture) {
+ $fixturePath=(Resolve-Path -LiteralPath $AudioFixture).Path
+ $buildPrefix=[IO.Path]::GetFullPath((Join-Path $root 'build'))+'\'
+ if(-not $fixturePath.StartsWith($buildPrefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Only build-local copies are allowed'}
+ Copy-Item -LiteralPath $fixturePath -Destination $wav
+} else {
+ & (Join-Path $bin 'bc_cli.exe') gen-test $wav --quiet | Out-Null
+ if($LASTEXITCODE -ne 0){throw 'fixture failed'}
+}
 function Hash($path) {
  $sha=[Security.Cryptography.SHA256]::Create(); $stream=[IO.File]::OpenRead($path)
  try { return [BitConverter]::ToString($sha.ComputeHash($stream)) } finally { $stream.Dispose(); $sha.Dispose() }
@@ -145,10 +176,36 @@ function Closed($dialog) {
 $proc=Start-Process -WindowStyle Normal -FilePath (Join-Path $bin 'bc_studio.exe') -ArgumentList @('--session',"`"$session`"") -PassThru
 try {
  $script:h=[IntPtr]::Zero
- for($i=0;$i -lt 60;$i++) { Start-Sleep -Milliseconds 100; $proc.Refresh(); if($proc.HasExited){throw 'GUI exited'}; if($proc.MainWindowHandle -ne 0){$script:h=$proc.MainWindowHandle;break} }
+ for($i=0;$i -lt 60;$i++) { Start-Sleep -Milliseconds 100; $proc.Refresh(); if($proc.HasExited){throw 'GUI exited'}; if(([BcTestWindow]::Find($proc.Id)) -ne 0){$script:h=([BcTestWindow]::Find($proc.Id));break} }
  Check ($script:h -ne 0) 'main window'
  $script:view=[Rc2Gui]::GetDlgItem($script:h,2000)
  $panel=[Rc2Gui]::GetDlgItem($script:h,3201)
+ $zoomRect=New-Object Rc2Gui+Rect;$modeRect=New-Object Rc2Gui+Rect
+ [void][Rc2Gui]::GetWindowRect([Rc2Gui]::GetDlgItem($panel,3104),[ref]$zoomRect)
+ [void][Rc2Gui]::GetWindowRect([Rc2Gui]::GetDlgItem($panel,1317),[ref]$modeRect)
+ Check ($zoomRect.t -ge $modeRect.b) 'waveform amplitude slider does not cover the treatment buttons'
+ $filterRect=New-Object Rc2Gui+Rect;$toolsRect=New-Object Rc2Gui+Rect
+ [void][Rc2Gui]::GetWindowRect([Rc2Gui]::GetDlgItem($panel,2511),[ref]$filterRect)
+ [void][Rc2Gui]::GetWindowRect([Rc2Gui]::GetDlgItem($panel,2501),[ref]$toolsRect)
+ Check ($filterRect.t -ge $toolsRect.b -or $filterRect.b -le $toolsRect.t) 'event filter does not cover Region and Time Selection tools'
+ $breaths=[Rc2Gui]::GetDlgItem($h,2557);$clicks=[Rc2Gui]::GetDlgItem($h,2558);$detector=[Rc2Gui]::GetDlgItem($h,2559)
+ Check ($breaths -ne [IntPtr]::Zero -and $clicks -ne [IntPtr]::Zero -and $detector -ne [IntPtr]::Zero) 'independent detector controls are visible without opening settings'
+ $b=Msg $breaths 0xf0;$c=Msg $clicks 0xf0;$method=Msg $detector 0x147
+ $count=Msg $h 0x812d;$history=Msg $h 0x8133
+ if((Msg $breaths 0xf0) -eq 0){[void](Msg $breaths 0xf5)}
+ if((Msg $clicks 0xf0) -eq 0){[void](Msg $clicks 0xf5)}
+ [void](Msg $breaths 0xf5)
+ Check ((Msg $breaths 0xf0) -eq 0 -and (Msg $clicks 0xf0) -eq 1) 'click-only mode is available directly in the toolbar'
+ [void](Msg $clicks 0xf5)
+ Check (-not [Rc2Gui]::IsWindowEnabled([Rc2Gui]::GetDlgItem($h,1200))) 'analysis disabled when neither detector is selected'
+ [void](Msg $breaths 0xf5)
+ Check ((Msg $breaths 0xf0) -eq 1 -and (Msg $clicks 0xf0) -eq 0) 'breath-only mode is available directly in the toolbar'
+ if($b -ne (Msg $breaths 0xf0)){[void](Msg $breaths 0xf5)}
+ if($c -ne (Msg $clicks 0xf0)){[void](Msg $clicks 0xf5)}
+ Check ((Msg $h 0x812d) -eq $count -and (Msg $h 0x8133) -eq $history) 'changing detectors preserves current proposals and audio Undo history'
+ [void](Msg $detector 0x14e 0);[void](Msg $h 0x111 (2559 -bor (1 -shl 16)))
+ Check ((Get-Content (Join-Path $env:APPDATA 'BreathClickStudio/analysis_method.txt') -Raw) -eq 'fusion') 'combined detection choice persists in the isolated profile'
+ [void](Msg $detector 0x14e $method);[void](Msg $h 0x111 (2559 -bor (1 -shl 16)))
  $tool=[Rc2Gui]::GetDlgItem($panel,2501)
  [void](Msg $tool 0xF5)
  $rect=New-Object Rc2Gui+Rect; [void][Rc2Gui]::GetClientRect($view,[ref]$rect)
@@ -166,6 +223,12 @@ try {
  Drag $end 76800
  Check ((Msg $h 0x8137) -gt $end) 'selection boundary can be corrected'
  Check ((Msg $h 0x8133) -eq $undo) 'selection adds no audio Undo'
+ $selectionLength=(Msg $h 0x8137)-(Msg $h 0x8136)
+ Cmd 1403
+ Check ((Msg $h 0x8135) -le ($selectionLength*3+2)) 'Zoom selection fits the selected interval with context'
+ Check ((Msg $h 0x8134) -le (Msg $h 0x8136) -and ((Msg $h 0x8134)+(Msg $h 0x8135)) -ge (Msg $h 0x8137)) 'Zoom selection keeps both boundaries visible'
+ Check ((Msg $h 0x8133) -eq $undo) 'Zoom selection preserves audio Undo'
+ Cmd 1402
  Cmd 2503 # silence, away from all detected events
  Check ((Msg $h 0x812d) -eq 4) 'manual edit in zone with no detector event'
  Check ((Msg $h 0x8133) -eq ($undo+1)) 'one Undo per manual operation'
@@ -246,6 +309,7 @@ try {
  Check ((Msg $h 0x8130 0) -eq 0) 'false positive excluded'
  Cmd 1313 # editorial include must keep negative truth
  Check ((Msg $h 0x8130 0) -eq 1) 'editorial reinclude independent of training'
+ Check ([Rc2Gui]::Text([Rc2Gui]::GetDlgItem($panel,3108)) -like 'Incluso:*') 'negative truth label does not mask a reincluded event render state'
  Cmd 1314
  Cmd 2501; Drag 140000 220000; Cmd 2508
  Check ((Msg $h 0x813f) -eq 2) 'events selected by time interval'
@@ -257,6 +321,43 @@ try {
  Check ((Msg $h 0x8130 2) -eq 0) 'all click processing disabled'
  Cmd 2510
  Check ((Msg $h 0x8130 2) -eq 1) 'click processing restored'
+ Cmd 2500; ClickFrame 240060
+ Check ((Msg $h 0x8132) -eq 2) 'click selected independently'
+ $clickStart=Msg $h 0x812e 2; $clickEnd=Msg $h 0x812f 2
+ $dialog=OpenModal 2311 'BreathClickBoundsDialog'
+ [void][Rc2Gui]::PostMessageW($dialog,0x111,[IntPtr]1,[IntPtr]0)
+ Start-Sleep -Milliseconds 150
+ Check ([Rc2Gui]::IsWindow($h)) 'bounds dialog OK keeps the standalone running'
+ Check ((Msg $h 0x812e 2) -eq $clickStart -and (Msg $h 0x812f 2) -eq $clickEnd) "bounds dialog OK preserves exact click samples ($clickStart..$clickEnd -> $(Msg $h 0x812e 2)..$(Msg $h 0x812f 2))"
+ Cmd 2540
+ $dialog=OpenModal 2554 '#32770'
+ Check ([Rc2Gui]::Fields($dialog) -match '6 click' -and [Rc2Gui]::Fields($dialog) -notmatch '6 respiri') 'click profile command reports its own verified examples independently'
+ Key $dialog 13;Closed $dialog
+ Cmd 2541
+ Check ((Msg $h 0x8131 2) -eq 0) 'click false positive excludes click without breath label contamination'
+ Cmd 1100
+ Check ((Msg $h 0x8131 2) -eq 1) 'Undo restores confirmed click'
+ Cmd 2546; Cmd 1208
+ Check ((Msg $h 0x8141) -eq $baseFrames) 'dedicated de-click preserves preview duration'
+ $originalClick=Msg $h 0x8143 240060
+ $processedClick=Msg $h 0x8142 240060
+ $feedbackUndo=Msg $h 0x8133
+ Cmd 2550; Cmd 1208
+ Check ((Msg $h 0x8133) -eq ($feedbackUndo+1) -and (Msg $h 0x8142 240060) -eq $processedClick -and (Msg $h 0x8131 2) -eq 1) 'unsatisfactory repair feedback adds one Undo without changing audio or click truth'
+ Cmd 1100; Cmd 1101; Cmd 1208
+ Cmd 2548
+ Check ([math]::Abs((Msg $h 0x8144 240060)-($originalClick-$processedClick)) -le 2) 'removed-signal player equals original minus processed PCM'
+ Cmd 1502
+ Cmd 2549; Cmd 1208
+ Check ((Msg $h 0x8142 240060) -eq $originalClick) 'None preserves original click without attenuation'
+ Cmd 1100; Cmd 1208
+ Check ((Msg $h 0x8142 240060) -eq $processedClick) 'Undo restores prior click strategy'
+ Cmd 1101; Cmd 1208
+ Check ((Msg $h 0x8142 240060) -eq $originalClick) 'Redo restores None repair preference'
+ Cmd 2546; Cmd 1208
+ Cmd 1315; Cmd 1208
+ Check ([math]::Abs((Msg $h 0x8142 240060)-$originalClick*[math]::Pow(10,-12/20.0)) -le 2) 'explicit Attenua on a click applies gain rather than reconstruction'
+ Cmd 1100
  Cmd 2500; ClickFrame 155000; ClickFrame 200000 9
  Check ((Msg $h 0x813f) -eq 2) 'Ctrl+click selects multiple events'
  ClickFrame 200000 9
@@ -277,6 +378,8 @@ try {
  $project=Get-Content $recovery -Raw | ConvertFrom-Json
  $snapshot=Join-Path (Split-Path $recovery) $project.files[0].session_relative
  $saved=Get-Content $snapshot -Raw | ConvertFrom-Json
+ $feedbackRegion=@($saved.regions | Where-Object {$_.kind -eq 1 -and $_.start -eq $clickStart -and $_.end -eq $clickEnd})
+ Check ($feedbackRegion.Count -eq 1 -and $feedbackRegion[0].repair_feedback -eq 'unsatisfactory' -and $feedbackRegion[0].repair_feedback_method -eq 'linear') 'repair feedback survives Undo/Redo, method changes, reanalysis and autosave separately from detection labels'
  Check ($saved.regions[0].learning_label -eq 'false_positive' -and $saved.regions[0].training_eligible) 'negative label persists independently of editorial toggles'
  Check (@($saved.regions | Where-Object {$_.manual_operation -and $_.edit_mode -eq 3}).Count -eq 1) 'manual silence persists'
  Check ($saved.effective_detector -eq 'fusion' -and $saved.ai_inference_frames -gt 0) 'Fusion actually executes while preserving human corrections'
@@ -291,15 +394,34 @@ try {
    if([math]::Abs($actual-$expected) -gt .00004){throw "preview/export WAV sample differs at $frame : $expected / $actual"}
  }
  Write-Host 'RC2 OK: GUI preview/export PCM samples within WAV quantization'
+ # Reopen the exported MEDIA, not only its session; previous decisions must
+ # not be applied a second time to an already processed file.
+ $reopened=Start-Process -WindowStyle Normal -FilePath (Join-Path $bin 'bc_studio.exe') -ArgumentList @("`"$outWav`"") -PassThru
+ $reopenedHandle=[IntPtr]::Zero
+ try {
+   for($i=0;$i -lt 60;$i++) {
+     Start-Sleep -Milliseconds 100
+     $reopenedHandle=[BcTestWindow]::Find($reopened.Id)
+     if($reopenedHandle -ne [IntPtr]::Zero){break}
+   }
+   Check ($reopenedHandle -ne [IntPtr]::Zero) 'exported audio reopens in the real GUI'
+   foreach($frame in @(40000,144480,240060)) {
+     $actual=(Msg $reopenedHandle 0x8143 $frame)/1000000.0
+     Check ([math]::Abs($actual-[Rc2Gui]::WavSample($outWav,$frame)) -le .000002) 'reopened media has exported PCM without a second treatment'
+   }
+   Check ((Msg $reopenedHandle 0x812d) -eq 0) 'reopened media has no inherited edit regions'
+ } finally {
+   if(-not $reopened.HasExited){[void][Rc2Gui]::PostMessageW($reopenedHandle,0x10,[IntPtr]0,[IntPtr]0);if(-not $reopened.WaitForExit(2000)){Stop-Process -Id $reopened.Id -Force}}
+ }
  # Coextensive detector and manual events must restore to different regions.
  # A detector Cut also makes persisted crossfade observable in output length.
  $overlapSession=Join-Path $work 'overlap.bcnstudio.json'
  $overlapRegions=@(
-   @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;edit_mode=1;manual_operation=$false;fade_ms=20;decision_source='user';classification='dsp'},
+   @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;edit_mode=1;manual_operation=$false;fade_ms=20;safety_margin_ms=10;decision_source='user';classification='dsp'},
    @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;edit_mode=3;manual_operation=$true;fade_ms=17;decision_source='user';classification='manual'}
  )
  $overlapEvents=@(
-   @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;mode='cut';manual_operation=$false;fade_ms=20;decision_source='user';classification='dsp'},
+   @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;mode='cut';manual_operation=$false;fade_ms=20;safety_margin_ms=10;decision_source='user';classification='dsp'},
    @{kind=0;start=144000;end=168000;enabled=$true;approved=$true;mode='silence';manual_operation=$true;fade_ms=17;decision_source='user';classification='manual'}
  )
  @{schema=2;source=$wav;regions=$overlapRegions;events=$overlapEvents;crossfade_ms=7} | ConvertTo-Json -Depth 6 | Set-Content $overlapSession -Encoding UTF8
@@ -307,7 +429,7 @@ try {
  $child=Start-Process -WindowStyle Hidden -FilePath (Join-Path $bin 'bc_studio.exe') -ArgumentList @('--session-export',"`"$overlapSession`"","`"$overlapExport`"") -PassThru -Wait
  Check ($child.ExitCode -eq 0) 'coextensive detector/manual session reopens and exports'
  $overlapWav=@(Get-ChildItem $overlapExport -Filter '*.wav')[0].FullName
- Check ([Rc2Gui]::WavFrames($overlapWav) -eq ($baseFrames-24000-336)) 'restore keeps distinct modes and uses persisted crossfade for real timeline cut'
+ Check ([Rc2Gui]::WavFrames($overlapWav) -eq ($baseFrames-24000+960-336)) 'restore keeps distinct modes and crossfades only inside approved margins'
  # A second, empty document with a deliberately permissive fixture threshold
  # exercises nonzero AI proposals. The first fixture may legitimately yield
  # only clicks after Fusion filtering; no accuracy claim follows from either.
@@ -321,8 +443,8 @@ try {
  finally { $env:TEMP=$savedTemp; $env:TMP=$savedTmp }
  $primaryHandle=$script:h
  try {
-   for($i=0;$i -lt 60;$i++) { Start-Sleep -Milliseconds 100; $fusionProc.Refresh(); if($fusionProc.MainWindowHandle -ne 0){break} }
-   $script:h=$fusionProc.MainWindowHandle
+   for($i=0;$i -lt 60;$i++) { Start-Sleep -Milliseconds 100; $fusionProc.Refresh(); if(([BcTestWindow]::Find($fusionProc.Id)) -ne 0){break} }
+   $script:h=([BcTestWindow]::Find($fusionProc.Id))
    Check ($script:h -ne 0) 'fresh Fusion fixture opened'
    Cmd 1207; Cmd 1200
    Start-Sleep -Seconds 11
@@ -335,7 +457,61 @@ try {
    $script:h=$primaryHandle
  }
  Check ((Hash $wav) -eq $original) 'original hash unchanged'
+ Cmd 1402; Cmd 1400; Cmd 1400; Cmd 1400; Cmd 2501; Cmd 1106
+ $missingStart=(Msg $h 0x8134)+[int64](((Msg $h 0x8135)-(Msg $h 0x8134))*.25)
+ Drag $missingStart ($missingStart+960)
+ Check ((Msg $h 0x8137) -gt (Msg $h 0x8136)) 'short missing click time range selected at an editing zoom'
+ $beforeMissing=Msg $h 0x812d
+ Cmd 2553
+ Check ((Msg $h 0x812d) -eq ($beforeMissing+1)) 'one command reports a missing click on the time selection'
+ Cmd 1100
+ Check ((Msg $h 0x812d) -eq $beforeMissing) 'one Undo removes the reported missing click'
+ # Dedicated private-data-free render outcomes: a repairable impulse, an unsafe
+ # 553-sample speech reconstruction and a review-only proposal on the same file.
+ $outcomeAudio=Join-Path $work 'outcomes.wav';[Rc2Gui]::OutcomeFixture($outcomeAudio)
+ $outcomeRegions=@(
+  @{kind=1;start=47980;end=48021;repair=$true;repair_method='linear';enabled=$true;approved=$true;edit_mode=0;classification='digital_click'},
+  @{kind=1;start=96000;end=96553;repair=$true;repair_method='linear';enabled=$true;approved=$true;edit_mode=0;classification='speech_overlap'},
+  @{kind=1;start=144000;end=144120;repair=$true;repair_method='auto';enabled=$true;approved=$false;edit_mode=0;classification='speech_overlap'}
+ )
+ $outcomeSession=Join-Path $work 'outcomes.bcnstudio.json'
+ @{schema=2;source=$outcomeAudio;regions=$outcomeRegions;events=@();crossfade_ms=0} | ConvertTo-Json -Depth 6 | Set-Content $outcomeSession -Encoding UTF8
+ $primaryHandle=$script:h;$primaryView=$script:view
+ $outcomeProc=Start-Process -WindowStyle Normal -FilePath (Join-Path $bin 'bc_studio.exe') -ArgumentList @('--session',"`"$outcomeSession`"") -PassThru
+ try {
+  for($i=0;$i -lt 60;$i++){Start-Sleep -Milliseconds 100;$script:h=[BcTestWindow]::Find($outcomeProc.Id);if($script:h -ne 0){break}}
+  Check ($script:h -ne 0) 'outcome fixture opens in the real editor'
+  $script:view=[Rc2Gui]::GetDlgItem($script:h,2000)
+  $outcomePanel=[Rc2Gui]::GetDlgItem($script:h,3201)
+  $outcomeState=[Rc2Gui]::GetDlgItem($outcomePanel,3108)
+  ClickFrame 96050
+  Check ([Rc2Gui]::Text($outcomeState) -like 'Incluso:*') 'inclusion does not claim a successful repair before preview'
+  Cmd 1208
+  Check ([Rc2Gui]::Text($outcomeState) -eq 'Click intatto: protezione della voce') 'unsafe manual Linear is visibly intact for safety'
+  foreach($frame in @(96000,96200,96552)) {Check ((Msg $script:h 0x8142 $frame) -eq (Msg $script:h 0x8143 $frame)) 'safety refusal preserves voice PCM'}
+  ClickFrame 48000
+  Check ([Rc2Gui]::Text($outcomeState) -eq 'Click riparato') 'successful Linear reconstruction is visibly repaired'
+  ClickFrame 144050
+  Check ([Rc2Gui]::Text($outcomeState) -eq 'Rilevato: da rivedere') 'uncertain proposal is visibly awaiting review'
+  ClickFrame 96050;Cmd 2547;Cmd 1208
+  Check ([Rc2Gui]::Text($outcomeState) -eq 'Click intatto: protezione della voce') 'manual Burg retains the same protection'
+  Cmd 1100
+  Check ([Rc2Gui]::Text($outcomeState) -like 'Incluso:*') 'Undo invalidates the old rendered outcome'
+  Cmd 1208
+  Check ([Rc2Gui]::Text($outcomeState) -eq 'Click intatto: protezione della voce') 'Undo restores protected Linear outcome on re-preview'
+  # Clear regions deliberately does not send the preview invalidation callback.
+  # Processed audition must compare the actual plan at the moment of the request.
+  Cmd 1202
+  Check ((Msg $script:h 0x8140) -eq 1) 'test retains a cached preview after an unnotified document change'
+  Cmd 1511;Cmd 1502
+  Check ((Msg $script:h 0x8142 48000) -eq (Msg $script:h 0x8143 48000)) 'processed playback never reuses repair coordinates after regions change'
+ } finally {
+  if(-not $outcomeProc.HasExited){[void][Rc2Gui]::PostMessageW($script:h,0x10,[IntPtr]0,[IntPtr]0);if(-not $outcomeProc.WaitForExit(2000)){Stop-Process -Id $outcomeProc.Id -Force}}
+  $script:h=$primaryHandle;$script:view=$primaryView
+ }
  Write-Host "RC2 GUI PASSED; DPI=$([Rc2Gui]::GetDpiForWindow($view)); artifacts=$work"
+$passed=$true
 } finally {
  if(-not $proc.HasExited){[void][Rc2Gui]::PostMessageW($script:h,0x10,[IntPtr]0,[IntPtr]0); if(-not $proc.WaitForExit(2000)){Stop-Process -Id $proc.Id -Force}}
+ Close-BcTestWorkspace $workspace $passed
 }

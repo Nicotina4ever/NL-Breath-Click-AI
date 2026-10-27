@@ -2,12 +2,13 @@
 # Build a version-checked portable candidate from an explicitly selected build.
 [CmdletBinding()]
 param(
-    [string]$Version = '1.0.0-rc.2',
+    [string]$Version = '1.0.0-rc.3',
     [string]$BuildDirectory = '',
     [string]$DependencyRoot = '',
     [string]$ModelDirectory = '',
     [string]$SourceCommit = '',
-    [string]$RuntimeDirectory = ''
+    [string]$RuntimeDirectory = '',
+    [string]$OutputDirectory = ''
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -40,6 +41,9 @@ foreach ($name in @('README.md','LEGGIMI_AVVIO.txt')) {
     $files[$name] = Join-Path $root "packaging\$name"
 }
 $files['GUIDA_STUDIO.md'] = Join-Path $root 'docs\USER_GUIDE.md'
+if ($Version -eq '1.0.0-rc.3') {
+    $files['PROVA_RC3.md'] = Join-Path $root 'docs\RELEASE_1.0.0-rc.3.md'
+}
 $files['TESTING.md'] = Join-Path $root 'docs\TESTING.md'
 $files['LICENSE'] = Join-Path $root 'LICENSE'
 $files['CHANGELOG.md'] = Join-Path $root "docs\RELEASE_$Version.md"
@@ -92,7 +96,10 @@ $manifest = foreach ($file in Get-ChildItem -LiteralPath $stage -File -Recurse |
         sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
 }
 ConvertTo-Json -InputObject @($manifest) -Depth 4 | Set-Content -LiteralPath (Join-Path $stage 'PACKAGE_MANIFEST.json') -Encoding UTF8
-$dist = Join-Path $root 'dist'
+$dist = if ($OutputDirectory) {
+    if ([IO.Path]::IsPathRooted($OutputDirectory)) { [IO.Path]::GetFullPath($OutputDirectory) }
+    else { [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory)) }
+} else { Join-Path $root 'dist' }
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 $zip = Join-Path $dist "NL_Breath_Click_Studio_Windows_Standalone_$Version.zip"
 $pending = Join-Path $dist ("NL_Breath_Click_Studio_Windows_Standalone_$Version.pending_" + [guid]::NewGuid().ToString('N') + '.zip')

@@ -8,6 +8,7 @@
 #  modello dati non cambia, il test fallisce anche se il motore e' corretto.
 # ============================================================================
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 
 $root = Split-Path -Parent $PSScriptRoot
 $testBin = if ($env:BC_TEST_BIN) { $env:BC_TEST_BIN } else { Join-Path $root 'build\bin\Release' }
@@ -197,13 +198,7 @@ $script:hwnd = [IntPtr]::Zero
 $script:procId = $proc.Id
 $script:dialogHandle = [IntPtr]::Zero
 $script:hasModern = $false
-for ($i = 0; $i -lt 40; $i++) {
-    Start-Sleep -Milliseconds 250
-    $proc.Refresh()
-    if ($proc.HasExited) { throw "bc_studio e' uscito subito ($($proc.ExitCode))" }
-    if ($proc.MainWindowHandle -ne [IntPtr]::Zero) { $script:hwnd = $proc.MainWindowHandle; break }
-}
-if ($script:hwnd -eq [IntPtr]::Zero) { throw 'finestra GUI non comparsa' }
+$script:hwnd = Wait-BcEditorWindow -Process $proc
 Start-Sleep -Milliseconds 700
 
 $view = [Gui]::GetDlgItem($script:hwnd, 2000)

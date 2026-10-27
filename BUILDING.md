@@ -51,7 +51,7 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 Sul tag RC2 sono obbligatori **33 test**. Il main successivo ne registra
-**35 su Windows completo**, includendo contratti di piattaforma e worker
+**37 sul ramo sperimentale RC3 Windows completo**, includendo contratti di piattaforma e worker
 portabile; il conteggio headless dipende dalla piattaforma.
 Il vecchio mock degli envelope P1 e' rimosso insieme all'interfaccia superata;
 l'integrazione diretta ha il proprio collaudo REAPER reale.
@@ -94,13 +94,18 @@ estrazione isolata. Non equivale a una VM Windows pulita.
 ```powershell
 powershell -File reaper/tests/run_isolated.ps1 `
   -ReaperExecutable "<REAPER>/reaper.exe" -Script reaper/tests/integration.lua
-<python.exe> reaper/tests/verify_audio.py <run>/result.json
+# Per conservare i media e preparare una verifica con mouse/tastiera:
+powershell -File reaper/tests/run_isolated.ps1 `
+  -Script reaper/tests/integration.lua -WorkRoot "build/test_work/manuale" -KeepOpen
+<python.exe> reaper/tests/verify_audio.py build/test_work/manuale/result.json
 powershell -File reaper/tests/run_isolated.ps1 `
   -Script reaper/tests/ui_harness.lua -TestProject "<gui_project>" -RunGuiInputTests
 ```
 
 La prima preparazione legge l'eseguibile indicato. Le prove successive riusano
-`build/reaper_sandbox/portable`, con hash e mutex. Non iniziare un test con
-l'istanza aperta. Le prove GUI aspettano il puntatore libero e interrompono
+`build/reaper_sandbox/portable`, con hash e mutex, anche se gia' aperta.
+Senza WorkRoot i test riusano uno slot, verificano l'audio e liberano i propri
+media al successo; i report numerici rimangono in build/test_work/managed.
+Le prove GUI aspettano il puntatore libero e interrompono
 l'input se viene mosso contemporaneamente. Il launcher locale
 `reaper/Apri_NL_Breath_Click_Studio.cmd` apre la demo senza deploy professionale.

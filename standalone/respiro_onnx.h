@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "analysis_control.h"
 
 namespace bc {
 namespace studio {
@@ -14,6 +15,9 @@ struct AiEvent {
     float score = 0.0f;
 };
 
+// Additional review proposals; does not change the model's >200 ms output.
+std::vector<AiEvent> shortBreathReviewProposals(const std::vector<float>& probabilities, float threshold);
+
 bool respiroEnAvailable(const std::string& modelPath, std::string* resolvedPath,
                         std::string* error);
 bool respiroEnDetect(const std::vector<float>& mono,
@@ -22,7 +26,8 @@ bool respiroEnDetect(const std::vector<float>& mono,
                      float threshold,
                      std::vector<AiEvent>* events,
                      std::vector<float>* probabilities,
-                     std::string* error);
+                     std::string* error,
+                     const AnalysisControl* control = nullptr);
 
 } // namespace studio
 } // namespace bc

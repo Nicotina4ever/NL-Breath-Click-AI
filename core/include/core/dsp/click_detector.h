@@ -33,6 +33,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
+#include <functional>
+#include "core/detect/detection.h"
 
 namespace bc {
 
@@ -111,5 +113,9 @@ private:
 
     float medianAbsError_ = 0.0f;
 };
+
+// Context-aware offline candidates; classifier names are DSP hypotheses, not labels.
+std::vector<Detection> detectMouthClicks(const float* samples, size_t count, double sampleRate,
+                                       const DetectorSettings& settings, const std::function<bool()>& cancelled = {});
 
 } // namespace bc

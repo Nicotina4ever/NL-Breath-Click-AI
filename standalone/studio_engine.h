@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include "analysis_control.h"
 
 #include "core/edit/wav_io.h"
 #include "core/detect/detection.h"
@@ -20,7 +21,10 @@ struct Settings {
     double postPadMs = 10.0;
     float sensitivity = 0.8f;
     float threshold = 0.02f;
+    bool detectBreath = true;
     bool detectClicks = false;
+    float clickSensitivity = 0.5f;
+    float clickThreshold = 0.55f;
     std::optional<DetectorSettings> dspSettings;
     bool useRespiroEn = false;
     float aiThreshold = 0.064f;
@@ -35,6 +39,7 @@ struct Settings {
     std::string modelPath;
     // "dsp", "ai" oppure "fusion" (unione DSP + Respiro-en).
     std::string detector = "dsp";
+    bool traceAiProbabilities = false; // developer diagnostics, opt-in only
 };
 
 enum class EditMode { Attenuate = 0, Cut = 1, Halve = 2, Silence = 3 };
@@ -50,6 +55,8 @@ struct Event {
     DetectionKind kind = DetectionKind::Breath;
     std::optional<float> reductionDb;
     bool repair = false;
+    std::string repairMethod = "auto";
+    std::string repairFeedback, repairFeedbackMethod;
     int64_t startSample = 0;   // campioni, inizio audio
     int64_t endSample = 0;     // esclusivo
     float score = 0.0f;        // confidenza del rilevatore
@@ -110,6 +117,9 @@ struct EditOperationResult {
     int64_t fadeFrames = 0;
     int64_t editedStart = 0;
     bool applied = false;
+    bool declined = false;
+    bool bypassed = false;
+    ClickRepairDiagnostics clickRepair;
     std::string note;
 };
 
@@ -140,8 +150,17 @@ struct EditResult {
     int64_t crossfadeFrames = 0;
     int appliedEvents = 0;
     int rejectedEvents = 0;
+    int declinedEvents = 0;
     WavWriteReport wav;
 };
+
+// Observed render outcome, separate from detection labels and requested method.
+// A reconstruction is not a claim that the audible defect is gone.
+const char* operationOutcome(const EditOperationResult& operation);
+const char* eventOutcome(const Event& event, const EditResult* rendered = nullptr);
+
+// Residual on stable original coordinates (removed spans contribute original PCM).
+AudioBuffer removedSignal(const AudioBuffer& original, const EditResult& edited);
 
 struct EditPlan {
     int schema = 2;
@@ -164,6 +183,9 @@ struct EditPlan {
     std::string markerScope = "voice";
 };
 
+// Cheap current-state cache key. PCM identity/revision is supplied by the host.
+std::string renderPlanSignature(const EditPlan& plan);
+
 struct EventMetric {
     int64_t startSample = 0;
     int64_t endSample = 0;
@@ -183,9 +205,14 @@ struct Analysis {
     double durationSeconds = 0.0;
     std::string detector;
     int64_t aiInferenceFrames = 0;
+    std::vector<float> aiProbabilities; // optional 10 ms trace, never training labels
     std::vector<Event> events;
     std::vector<Event> excludedEvents;
 };
+
+std::vector<Event> fragmentedBreathReviewProposals(const bc::AnalysisResult& features,
+                                                  const std::vector<float>& aiProbabilities,
+                                                  float aiThreshold);
 
 struct Report {
     Analysis analysis;
@@ -193,6 +220,7 @@ struct Report {
     std::string outputSha256;
     Settings settings;
     std::vector<EventMetric> metrics;
+    std::vector<EditOperationResult> clickDecisions;
     double outsideMaxDeltaDb = 0.0;
     double outsideMeanDeltaDb = 0.0;
     int processedEvents = 0;
@@ -205,7 +233,8 @@ struct Report {
 bool analyzeFile(const std::string& path,
                  const Settings& settings,
                  Analysis* analysis,
-                 std::string* error = nullptr);
+                 std::string* error = nullptr,
+                 const AnalysisControl* control = nullptr);
 
 bool processFile(const std::string& inputPath,
                  const std::string& outputDirectory,

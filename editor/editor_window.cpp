@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 
 #include <commctrl.h>
@@ -25,6 +26,8 @@
 #include "studio_dialogs.h"
 #include "studio_engine.h"
 #include "studio_session.h"
+#include "respiro_onnx.h"
+#include "core/util/atomic_file.h"
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "comdlg32.lib")
@@ -165,6 +168,7 @@ struct SettingsDialogState {
     HWND minClick = nullptr;
     HWND mergeGap = nullptr;
     HWND pauseGate = nullptr;
+    HWND detectBreath = nullptr, detectClicks = nullptr;
     HWND device = nullptr;
     HWND breathValue = nullptr;
     HWND clickValue = nullptr;
@@ -201,6 +205,8 @@ void setControlFont(HWND control, HFONT font) {
 DetectorSettings readControls(SettingsDialogState& state) {
     DetectorSettings settings = state.settings ? *state.settings : DetectorSettings{};
     if (state.breathThreshold) {
+        settings.detectBreath = SendMessageW(state.detectBreath,BM_GETCHECK,0,0)==BST_CHECKED;
+        settings.detectClicks = SendMessageW(state.detectClicks,BM_GETCHECK,0,0)==BST_CHECKED;
         settings.breathThreshold =
             static_cast<float>(SendMessageW(state.breathThreshold, TBM_GETPOS, 0, 0)) /
             kSliderResolution;
@@ -306,6 +312,8 @@ void setSlidersFromSettings(SettingsDialogState& state, const DetectorSettings& 
                  static_cast<LPARAM>(std::max(1, std::min(20, settings.minClickMs))));
     SendMessageW(state.mergeGap, TBM_SETPOS, TRUE,
                  static_cast<LPARAM>(std::max(0, std::min(200, settings.mergeGapMs))));
+    SendMessageW(state.detectBreath,BM_SETCHECK,settings.detectBreath?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(state.detectClicks,BM_SETCHECK,settings.detectClicks?BST_CHECKED:BST_UNCHECKED,0);
     SendMessageW(state.pauseGate, BM_SETCHECK,
                  settings.requirePauseForBreath ? BST_CHECKED : BST_UNCHECKED, 0);
     updateSettingsLabels(state);
@@ -656,6 +664,14 @@ bool showSettingsDialog(HWND parent, DetectorSettings& settings,
     addLabel(L"Anteprima DSP: Dopo applica l'attenuazione e la riparazione click correnti.",
              470, 540, 450, 40);
 
+    state.detectBreath=CreateWindowExW(0,L"BUTTON",L"Rileva respiri",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        470,555,200,24,dialog,reinterpret_cast<HMENU>(3060),nullptr,nullptr);
+    state.detectClicks=CreateWindowExW(0,L"BUTTON",L"Rileva click / bocca",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        690,555,220,24,dialog,reinterpret_cast<HMENU>(3061),nullptr,nullptr);
+    SendMessageW(state.detectBreath,BM_SETCHECK,settings.detectBreath?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(state.detectClicks,BM_SETCHECK,settings.detectClicks?BST_CHECKED:BST_UNCHECKED,0);
+    setControlFont(state.detectBreath,state.font);setControlFont(state.detectClicks,state.font);
+
     const int buttonY = 618;
     auto addButton = [&](int id, const wchar_t* text, int x0, int w0) {
         HWND button = CreateWindowExW(0, L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
@@ -744,6 +760,24 @@ namespace bc {
 // ===========================================================================
 EditorWindow::EditorWindow() = default;
 
+void EditorWindow::setStudioMode(bool enabled) {
+    if(enabled && !studioMode_) {
+        if(!document_.isLoaded()) {
+            const studio::Settings defaults;
+            editSettings_.prePadMs=static_cast<float>(defaults.prePadMs);
+            editSettings_.postPadMs=static_cast<float>(defaults.postPadMs);
+            editSettings_.breathReductionDb=defaults.reductionDb;
+        }
+        studioDetector_=studio::respiroEnAvailable("",nullptr,nullptr)?"fusion":"dsp";
+        std::ifstream in(nativeFilePath(std::filesystem::u8path(detectorSettingsDirectory()+"/analysis_method.txt")));
+        std::string saved;std::getline(in,saved);
+        if(saved=="dsp" || saved=="ai" || saved=="fusion")studioDetector_=saved;
+    }
+    studioMode_=enabled;
+    view_.setGainCurveMode(enabled?GainCurveMode::StudioSource:GainCurveMode::Legacy);
+    if(window_){refreshDeviceStatus();updateCommandState();updateStatusBar();}
+}
+
 EditorWindow::~EditorWindow() {
     player_.close();
     if (backgroundBrush_) DeleteObject(backgroundBrush_);
@@ -757,6 +791,9 @@ bool EditorWindow::create(HINSTANCE instance) {
         const std::string profilePath =
             detectorSettingsDirectory() + "\\personal_profile.ini";
         loadPersonalProfile(profilePath, personalProfile_, &profileError);
+        if(personalProfile_.kind!=DetectionKind::Breath)personalProfile_=PersonalProfile{};
+        loadPersonalProfile(detectorSettingsDirectory()+"\\personal_click_profile.ini",clickProfile_,&profileError);
+        if(clickProfile_.kind!=DetectionKind::Click)clickProfile_=PersonalProfile{};
     }
 
     INITCOMMONCONTROLSEX controls = {};
@@ -859,6 +896,16 @@ void EditorWindow::createChildren() {
 
     playButton_ = makeButton(EditorCommand::kTransportPlay, L"Riproduci", 596, 96);
     stopButton_ = makeButton(EditorCommand::kTransportStop, L"Stop", 696, 60);
+    detectBreathQuick_=CreateWindowExW(0,L"BUTTON",L"Rileva respiri",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        12,42,130,24,window_,reinterpret_cast<HMENU>(EditorCommand::kDetectBreathsQuick),instance_,nullptr);
+    detectClicksQuick_=CreateWindowExW(0,L"BUTTON",L"Rileva click / bocca",WS_CHILD|WS_VISIBLE|BS_AUTOCHECKBOX,
+        152,42,160,24,window_,reinterpret_cast<HMENU>(EditorCommand::kDetectClicksQuick),instance_,nullptr);
+    detectorQuick_=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL,
+        350,41,218,180,window_,reinterpret_cast<HMENU>(EditorCommand::kDetectorQuick),instance_,nullptr);
+    for(auto text:{L"Analisi combinata (voce)",L"Modello vocale",L"Analisi acustica"})
+        SendMessageW(detectorQuick_,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(text));
+    for(auto control:{detectBreathQuick_,detectClicksQuick_,detectorQuick_})
+        SendMessageW(control,WM_SETFONT,reinterpret_cast<WPARAM>(uiFont_),TRUE);
 
     gainLabel_ = CreateWindowExW(0, L"STATIC", L"Guadagno generale", WS_CHILD | WS_VISIBLE,
                                  780, 4, 150, 16, window_, nullptr, instance_, nullptr);
@@ -994,6 +1041,7 @@ void EditorWindow::createMenus() {
         {MF_STRING, EditorCommand::kStudioDetectorFusion, L"Metodo: fusione DSP + AI (sperimentale)"},
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kStudioPreview, L"Anteprima del risultato"},
+        {MF_STRING, EditorCommand::kPreviewResidual, L"Ascolta solo rimosso (differenza)"},
         {MF_STRING, EditorCommand::kStudioApply, L"Applica ed esporta il risultato..."},
         {MF_STRING, EditorCommand::kStudioExportPlan, L"Esporta piano versionato..."},
         {MF_SEPARATOR, 0, nullptr},
@@ -1034,7 +1082,15 @@ void EditorWindow::createMenus() {
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kRegionSetBreath, L"Tipo: respiro"},
         {MF_STRING, EditorCommand::kRegionSetClick, L"Tipo: click"},
-        {MF_STRING, EditorCommand::kRegionRepairToggle, L"Ripara il click per interpolazione"},
+        {MF_STRING, EditorCommand::kRegionRepairToggle, L"Ripara click / attenua"},
+        {MF_STRING, EditorCommand::kClickRepairAuto, L"De-click: automatico"},
+        {MF_STRING, EditorCommand::kClickRepairLinear, L"De-click: interpolazione lineare"},
+        {MF_STRING, EditorCommand::kClickRepairPredictive, L"De-click: ricostruzione predittiva"},
+        {MF_STRING, EditorCommand::kClickRepairNone, L"De-click: nessuna riparazione"},
+        {MF_STRING, EditorCommand::kLearningFalsePositive, L"Falso positivo (respiro)"},
+        {MF_STRING, EditorCommand::kLearningClickFalsePositive, L"Falso positivo (click)"},
+        {MF_STRING, EditorCommand::kRepairUnsatisfactory, L"Riparazione insoddisfacente"},
+        {MF_STRING, EditorCommand::kRepairFeedbackClear, L"Cancella giudizio sulla riparazione"},
         {MF_SEPARATOR, 0, nullptr},
         {MF_STRING, EditorCommand::kRegionGainDown, L"Attenua di piu' (3 dB)"},
         {MF_STRING, EditorCommand::kRegionGainUp, L"Attenua di meno (3 dB)"},
@@ -1068,12 +1124,20 @@ void EditorWindow::createMenus() {
         {MF_STRING, EditorCommand::kLearningMissedBreath, L"Segna come respiro mancato confermato"},
         {MF_STRING, EditorCommand::kLearningFalsePositive, L"Segna come falso positivo confermato"},
         {MF_STRING, EditorCommand::kLearningEditorialExclusion, L"Segna esclusione editoriale (non training)"},
+        {MF_STRING, EditorCommand::kLearningClickConfirmed, L"Conferma click"},
+        {MF_STRING, EditorCommand::kLearningClickFalsePositive, L"Falso positivo click"},
+        {MF_STRING, EditorCommand::kLearningMissedClick, L"Click mancato (regione manuale)"},
+        {MF_STRING, EditorCommand::kLearningMouthConfirmed, L"Conferma schiocco saliva/labbra"},
+        {MF_STRING, EditorCommand::kLearningVocalTransient, L"Transiente vocale da preservare"},
         {MF_STRING, EditorCommand::kLearningUnverified, L"Riporta a non verificato"},
         {MF_SEPARATOR, 0, nullptr},
-        {MF_STRING, EditorCommand::kLearningTrain, L"Impara dalle correzioni..."},
-        {MF_STRING, EditorCommand::kLearningActivate, L"Attiva/disattiva profilo personale"},
+        {MF_STRING, EditorCommand::kLearningTrain, L"Crea profilo respiri dalle correzioni..."},
+        {MF_STRING, EditorCommand::kLearningActivate, L"Attiva/disattiva profilo respiri"},
         {MF_STRING, EditorCommand::kLearningReset, L"Ripristina profilo generale"},
-        {MF_STRING, EditorCommand::kLearningStatus, L"Stato del profilo..."}};
+        {MF_STRING, EditorCommand::kLearningStatus, L"Stato profilo respiri..."},
+        {MF_STRING, EditorCommand::kLearningTrainClicks, L"Crea profilo click dalle correzioni..."},
+        {MF_STRING, EditorCommand::kLearningActivateClicks, L"Attiva/disattiva profilo click"},
+        {MF_STRING, EditorCommand::kLearningStatusClicks, L"Stato profilo click..."}};
 
     const MenuEntry fadeEntries[] = {
         {MF_STRING, EditorCommand::kFadeSet, L"Applica fade di ingresso e uscita (50 ms)"},
@@ -1317,8 +1381,27 @@ LRESULT EditorWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
             const size_t i = static_cast<size_t>(wParam) * document_.channels();
             return i < document_.audio().samples.size() ? static_cast<LRESULT>(std::llround(document_.audio().samples[i] * 1000000.)) : 0;
         }
+        case WM_APP + 325: {
+            const auto index=static_cast<size_t>(wParam);
+            return index<document_.regions().size()?static_cast<LRESULT>(document_.regions()[index].kind):-1;
+        }
         case WM_APP + 324: return static_cast<LRESULT>(std::llround(player_.sampleAt(static_cast<int64_t>(wParam)) * 1000000.));
+        case WM_APP + 326: return player_.isPlaying() ? 1 : 0;
+        case WM_APP + 327: return static_cast<LRESULT>(player_.position());
         default: break;
+    }
+    // The progress window pumps messages while the worker owns an immutable
+    // source/settings snapshot. Paint and read-only diagnostics remain live;
+    // no edit, timer render, file switch or nested analysis may alter the host.
+    if (analysisBusy_) {
+        if (message == WM_CLOSE) {
+            analysisControl_.cancelRequested = true;
+            analysisCloseRequested_ = true;
+            return 0;
+        }
+        if (message == WM_COMMAND || message == WM_TIMER || message == WM_NOTIFY ||
+            message == WM_KEYDOWN || message == WM_HSCROLL || message == WM_CONTEXTMENU ||
+            message == WM_DROPFILES) return 0;
     }
     switch (message) {
         case WM_CREATE:
@@ -1347,6 +1430,7 @@ LRESULT EditorWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
             return 0;
 
         case WM_COMMAND:
+            if(LOWORD(wParam)==EditorCommand::kDetectorQuick && lParam && HIWORD(wParam)!=CBN_SELCHANGE)return 0;
             onCommand(static_cast<int>(LOWORD(wParam)));
             return 0;
 
@@ -1399,16 +1483,38 @@ LRESULT EditorWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
             }
             return 0;
 
+        case WM_VSCROLL:
+            if (reinterpret_cast<HWND>(lParam) == regionPanel_) {
+                scrollRegionPanel(LOWORD(wParam), HIWORD(wParam)); return 0;
+            }
+            break;
+        case WM_MOUSEWHEEL:
+            if (reinterpret_cast<HWND>(lParam) == regionPanel_) {
+                scrollRegionPanel(SB_THUMBPOSITION, regionPanelScroll_ - GET_WHEEL_DELTA_WPARAM(wParam) / 3);
+                return 0;
+            }
+            break;
         case WM_TIMER:
             if (wParam == kTimerPlayhead) {
+                const int playbackError = player_.takePlaybackError();
+                if (playbackError) {
+                    regionAudition_ = false;
+                    setStatusMessage("Riproduzione interrotta dall'uscita audio (codice " +
+                        std::to_string(playbackError) + "). Il lavoro e' conservato.");
+                    updateCommandState();
+                }
                 if (player_.isPlaying()) {
                     const int64_t position = playerPositionInDocument();
                     view_.setPlayhead(position);
-                    if (followPlayhead_) {
+                    if (followPlayhead_ && !regionAudition_) {
                         followAutoScroll_ = true;
                         view_.ensureFrameVisible(position);
                         followAutoScroll_ = false;
                     }
+                } else if (regionAudition_) {
+                    view_.setPlayhead(playerPositionInDocument());
+                    regionAudition_ = false;
+                    updateCommandState();
                 }
                 return 0;
             }
@@ -1566,7 +1672,8 @@ void EditorWindow::updateStatusBar() {
         if (applicati > 0) {
             testo += "  |  applicati: " + std::to_string(applicati);
         }
-        if (engineApplied_ >= 0) testo += "  |  motore applicati: " + std::to_string(engineApplied_) + ", rifiutati: " + std::to_string(engineRejected_);
+        if (engineApplied_ >= 0) testo += "  |  applicati: " + std::to_string(engineApplied_) +
+            ", intatti per sicurezza: " + std::to_string(engineDeclined_) + ", non validi: " + std::to_string(engineRejected_);
         const int index = view_.selectedRegion();
         if (index >= 0 && index < static_cast<int>(document_.regions().size())) {
             const EditRegion& regione = document_.regions()[static_cast<size_t>(index)];
@@ -1622,8 +1729,12 @@ void EditorWindow::refreshDeviceStatus() {
 }
 
 void EditorWindow::markDocumentChanged(bool rebuildPeaks) {
-    engineApplied_ = engineRejected_ = -1;
-    if (playerUsesPreview_) { player_.stop(); playerUsesPreview_ = false; }
+    engineApplied_ = engineRejected_ = engineDeclined_ = -1;
+    if (playerUsesPreview_) {
+        view_.setPlayhead(playerPositionInDocument());
+        player_.stop(); playerUsesPreview_ = false; regionAudition_ = false;
+    }
+    if (rebuildPeaks) regionAudition_ = false;
     hasPreview_ = false;
     documentDirty_ = true;
     projectDirty_ = true;
@@ -1707,7 +1818,12 @@ void EditorWindow::updateCommandState() {
     EnableWindow(openButton_, TRUE);
     EnableWindow(saveButton_, modificabile ? TRUE : FALSE);
     EnableWindow(exportButton_, modificabile ? TRUE : FALSE);
-    EnableWindow(analyzeButton_, modificabile ? TRUE : FALSE);
+    const bool anyDetector=detectorSettings_.detectBreath || detectorSettings_.detectClicks;
+    EnableWindow(analyzeButton_, modificabile && anyDetector ? TRUE : FALSE);
+    SendMessageW(detectBreathQuick_,BM_SETCHECK,detectorSettings_.detectBreath?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(detectClicksQuick_,BM_SETCHECK,detectorSettings_.detectClicks?BST_CHECKED:BST_UNCHECKED,0);
+    SendMessageW(detectorQuick_,CB_SETCURSEL,studioDetector_=="fusion"?0:studioDetector_=="ai"?1:2,0);
+    EnableWindow(detectorQuick_,studioMode_ && detectorSettings_.detectBreath);
     EnableWindow(settingsButton_, TRUE);
     EnableWindow(playButton_, modificabile ? TRUE : FALSE);
     EnableWindow(stopButton_, modificabile ? TRUE : FALSE);
@@ -1719,7 +1835,7 @@ void EditorWindow::updateCommandState() {
 
     abilita(EditorCommand::kFileSaveAs, modificabile);
     abilita(EditorCommand::kFileExport, modificabile);
-    abilita(EditorCommand::kAnalyze, modificabile);
+    abilita(EditorCommand::kAnalyze, modificabile && anyDetector);
     abilita(EditorCommand::kAnalyzeSettings, TRUE);
     abilita(EditorCommand::kClearRegions, caricato);
     abilita(EditorCommand::kEditUndo, caricato && document_.canUndo());
@@ -1733,6 +1849,7 @@ void EditorWindow::updateCommandState() {
     abilita(EditorCommand::kEditCut, selezione);
     abilita(EditorCommand::kEditSilenceSelection, selezione);
     abilita(EditorCommand::kEditCropToSelection, selezione);
+    abilita(EditorCommand::kEditInsertSilence, caricato && !studioMode_);
 
     const int regione = view_.selectedRegion();
     const bool c_e_regione = caricato && regione >= 0 &&
@@ -1774,6 +1891,21 @@ void EditorWindow::updateCommandState() {
 void EditorWindow::onCommand(int commandId) {
     // I comandi che la vista manda come WM_COMMAND hanno gia' il loro id.
     switch (commandId) {
+        case EditorCommand::kDetectBreathsQuick:
+        case EditorCommand::kDetectClicksQuick: {
+            if(commandId==EditorCommand::kDetectBreathsQuick)detectorSettings_.detectBreath=!detectorSettings_.detectBreath;
+            else detectorSettings_.detectClicks=!detectorSettings_.detectClicks;
+            std::string error;
+            if(detectorSettings_.detectBreath || detectorSettings_.detectClicks)saveDetectorSettings(detectorSettings_,&error);
+            markDocumentChanged(false);updateCommandState();
+            setStatusMessage(error.empty()?"Rilevatori aggiornati; premi Analizza per aggiornare le proposte":error);
+            break;
+        }
+        case EditorCommand::kDetectorQuick: {
+            const int index=static_cast<int>(SendMessageW(detectorQuick_,CB_GETCURSEL,0,0));
+            if(index>=0)commandDetectorMode(index==0?"fusion":index==1?"ai":"dsp");
+            break;
+        }
         case EditorCommand::kToolRegions:
         case EditorCommand::kToolTimeSelection:
             view_.setTimeSelectionTool(commandId == EditorCommand::kToolTimeSelection);
@@ -1794,6 +1926,29 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kRegionFilter:
             view_.setRegionFilter(static_cast<int>(SendMessageW(regionFilter_, CB_GETCURSEL, 0, 0)));
             break;
+        case EditorCommand::kAuditionProcessed: commandAuditionRegion(1); break;
+        case EditorCommand::kAuditionRemoved: commandAuditionRegion(2); break;
+        case EditorCommand::kReviewReport: {
+            const int selected = view_.selectedRegion();
+            const bool click = selected >= 0 && selected < static_cast<int>(document_.regions().size()) &&
+                document_.regions()[selected].kind == DetectionKind::Click;
+            HMENU menu = CreatePopupMenu();
+            AppendMenuW(menu, MF_STRING, EditorCommand::kReportMissedBreath, L"Respiro non rilevato (selezione temporale)");
+            AppendMenuW(menu, MF_STRING, EditorCommand::kReportMissedClick, L"Click non rilevato (selezione temporale)");
+            AppendMenuW(menu, selected < 0 ? MF_GRAYED : MF_STRING,
+                click ? EditorCommand::kLearningClickConfirmed : EditorCommand::kLearningConfirmBreath,
+                click ? L"Conferma click selezionato" : L"Conferma respiro selezionato");
+            AppendMenuW(menu, selected < 0 ? MF_GRAYED : MF_STRING,
+                click ? EditorCommand::kLearningClickFalsePositive : EditorCommand::kLearningFalsePositive,
+                L"Falso positivo selezionato");
+            AppendMenuW(menu, selected < 0 ? MF_GRAYED : MF_STRING, EditorCommand::kRepairUnsatisfactory, L"Riparazione insoddisfacente");
+            AppendMenuW(menu, selected < 0 ? MF_GRAYED : MF_STRING, EditorCommand::kRepairFeedbackClear, L"Cancella giudizio sulla riparazione");
+            RECT button{}; GetWindowRect(GetDlgItem(regionPanel_, EditorCommand::kReviewReport), &button);
+            const int command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, button.left, button.bottom, 0, window_, nullptr);
+            DestroyMenu(menu);
+            if (command) onCommand(command);
+            break;
+        }
         // --- file ---------------------------------------------------------
         case EditorCommand::kFileOpen: commandOpen(); break;
         case EditorCommand::kFileOpenInTrack: addTrackAndLoad(askOpenPath()); break;
@@ -1840,6 +1995,44 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kGoToSelectedRegion: commandGoToSelectedRegion(); break;
         case EditorCommand::kViewVerticalReset: commandVerticalZoomReset(); break;
         case EditorCommand::kViewFollowPlayhead: commandToggleFollowPlayhead(); break;
+        case EditorCommand::kLearningClickConfirmed: commandLearningLabel(LearningLabel::ClickConfirmed); break;
+        case EditorCommand::kLearningClickFalsePositive: commandLearningLabel(LearningLabel::ClickFalsePositive); break;
+        case EditorCommand::kLearningMissedClick: commandLearningLabel(LearningLabel::MissedClick); break;
+        case EditorCommand::kLearningMouthConfirmed: commandLearningLabel(LearningLabel::MouthClickConfirmed); break;
+        case EditorCommand::kLearningVocalTransient: commandLearningLabel(LearningLabel::VocalTransient); break;
+        case EditorCommand::kReportMissedBreath:
+        case EditorCommand::kReportMissedClick: {
+            if(!view_.hasSelection()){setStatusMessage("Seleziona sulla forma d'onda l'evento non rilevato");break;}
+            EditRegion region;
+            region.kind=commandId==EditorCommand::kReportMissedClick?DetectionKind::Click:DetectionKind::Breath;
+            region.startSample=view_.selectionStart();region.endSample=view_.selectionEnd();
+            region.enabled=region.approved=region.trainingEligible=true;
+            region.fromDetection=false;region.decisionSource="user";region.classification="manual";
+            region.learningLabel=region.kind==DetectionKind::Click?"missed_click":"missed_breath";
+            region.repair=region.kind==DetectionKind::Click;
+            region.reductionDb=region.repair?editSettings_.clickReductionDb:editSettings_.breathReductionDb;
+            region.fadeMs=editFadeMs_;
+            const int index=document_.addRegion(region);
+            if(index>=0){view_.clearRegionSelection();view_.setSelectedRegion(index);view_.refreshDocument(false);markDocumentChanged(false);}
+            setStatusMessage("Evento non rilevato confermato; nessun addestramento automatico");break;
+        }
+        case EditorCommand::kRepairUnsatisfactory:
+        case EditorCommand::kRepairFeedbackClear: {
+            auto indices=view_.selectedRegions();
+            if(indices.empty()&&view_.selectedRegion()>=0)indices.push_back(view_.selectedRegion());
+            if(indices.empty()){setStatusMessage("Seleziona l'evento di cui vuoi valutare la riparazione");break;}
+            document_.beginUndoGroup("Giudizio sulla riparazione");
+            for(int index:indices){
+                if(index<0||index>=static_cast<int>(document_.regions().size()))continue;
+                auto region=document_.regions()[index];
+                region.repairFeedback=commandId==EditorCommand::kRepairUnsatisfactory?"unsatisfactory":"";
+                const char* modes[]={"attenuate","cut","halve","silence"};
+                region.repairFeedbackMethod=region.repairFeedback.empty()?"":region.repair?region.repairMethod:modes[std::clamp(region.editMode,0,3)];
+                document_.updateRegion(index,region,false);
+            }
+            document_.endUndoGroup();markDocumentChanged(false);view_.refreshDocument(false);
+            setStatusMessage("Giudizio salvato; audio e classificazione invariati");break;
+        }
         case EditorCommand::kLearningConfirmBreath:
             commandLearningLabel(LearningLabel::BreathConfirmed); break;
         case EditorCommand::kLearningFalsePositive:
@@ -1851,6 +2044,9 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kLearningUnverified:
             commandLearningLabel(LearningLabel::Unverified); break;
         case EditorCommand::kLearningTrain: commandTrainPersonalProfile(); break;
+        case EditorCommand::kLearningTrainClicks: commandTrainPersonalProfile(DetectionKind::Click); break;
+        case EditorCommand::kLearningActivateClicks: commandActivatePersonalProfile(!clickProfileActive_,DetectionKind::Click); break;
+        case EditorCommand::kLearningStatusClicks: commandLearningStatus(DetectionKind::Click); break;
         case EditorCommand::kLearningActivate: commandActivatePersonalProfile(!personalProfileActive_); break;
         case EditorCommand::kLearningReset: commandActivatePersonalProfile(false); break;
         case EditorCommand::kLearningStatus: commandLearningStatus(); break;
@@ -1888,6 +2084,35 @@ void EditorWindow::onCommand(int commandId) {
         case EditorCommand::kStudioDetectorDsp: commandDetectorMode("dsp"); break;
         case EditorCommand::kStudioDetectorAi: commandDetectorMode("ai"); break;
         case EditorCommand::kStudioDetectorFusion: commandDetectorMode("fusion"); break;
+        case EditorCommand::kClickRepairAuto:
+        case EditorCommand::kClickRepairLinear:
+        case EditorCommand::kClickRepairPredictive:
+        case EditorCommand::kClickRepairNone: {
+            auto indices=view_.selectedRegions();
+            if(indices.empty()&&view_.selectedRegion()>=0)indices.push_back(view_.selectedRegion());
+            document_.beginUndoGroup("Algoritmo de-click");
+            for(int index:indices){
+                if(index<0||index>=static_cast<int>(document_.regions().size()))continue;
+                auto region=document_.regions()[index];
+                if(region.kind!=DetectionKind::Click)continue;
+                region.repair=true;region.editMode=0;region.manualOperation=false;
+                region.repairMethod=commandId==EditorCommand::kClickRepairNone?"none":commandId==EditorCommand::kClickRepairLinear?"linear":
+                    commandId==EditorCommand::kClickRepairPredictive?"predictive":"auto";
+                region.approved=region.enabled=true;region.decisionSource="user";
+                document_.updateRegion(index,region);
+            }
+            document_.endUndoGroup();hasPreview_=false;markDocumentChanged(false);view_.refreshDocument(false);
+            setStatusMessage("De-click aggiornato; anteprima/export usano lo stesso motore");break;
+        }
+        case EditorCommand::kPreviewResidual: {
+            commandPreview();if(!hasPreview_)break;
+            auto residual=studio::removedSignal(document_.audio(),preview_);
+            commandStop();if(!ensurePlayerOpen())break;
+            auto samples=std::make_shared<std::vector<float>>(std::move(residual.samples));
+            player_.setAudio(samples,document_.frameCount());playerUsesPreview_=false;abOriginal_=true;
+            player_.play(view_.hasSelection()?view_.selectionStart():view_.playhead(), view_.hasSelection()?view_.selectionEnd():-1);
+            setStatusMessage("SOLO RIMOSSO: differenza allineata ai campioni originali");break;
+        }
         case EditorCommand::kStudioPreview: commandPreview(); break;
         case EditorCommand::kStudioApply: commandApplyPreview(); break;
         case EditorCommand::kStudioExportPlan: commandExportPlan(); break;
@@ -1995,6 +2220,8 @@ void EditorWindow::onContextMenu(int screenX, int screenY) {
     }
     if (view_.timeSelectionTool() && view_.hasSelection()) {
         HMENU menu = CreatePopupMenu();
+        AppendMenuW(menu,MF_STRING,EditorCommand::kReportMissedBreath,L"Respiro non rilevato");
+        AppendMenuW(menu,MF_STRING,EditorCommand::kReportMissedClick,L"Click non rilevato");
         AppendMenuW(menu, MF_STRING, EditorCommand::kManualAttenuate, L"Attenua (dB e fade)...");
         AppendMenuW(menu, MF_STRING, EditorCommand::kManualSilence, L"Sostituisci con silenzio");
         AppendMenuW(menu, MF_STRING, EditorCommand::kManualCut, L"Taglia");
@@ -2288,6 +2515,9 @@ void EditorWindow::rebuildTrackMenu() {
 }
 
 void EditorWindow::refreshActiveTrack() {
+    regionAudition_ = false;
+    hasPreview_ = false;
+    engineApplied_ = engineRejected_ = engineDeclined_ = -1;
     if (!document_.isLoaded()) {
         view_.clearSelection();
         updateTitle();
@@ -2679,9 +2909,9 @@ bool EditorWindow::buildEditPlan(studio::EditPlan* plan, std::string* error) {
     plan->events.clear();
     plan->markers.clear();
     for (const EditRegion& region : document_.regions()) {
-        // L'inclusione e' il flag di piano; non richiede una conferma
-        // individuale. Un evento escluso resta nel documento ma non entra qui.
-        if (!region.enabled || !region.approved) continue;
+        // Carry the whole review into exported plans/reports and other hosts.
+        // The engine applies only enabled+approved events; dropping the others
+        // here would discard false positives, pending clicks and their feedback.
         studio::Event event = studio::eventFromRegion(region);
         plan->events.push_back(event);
     }
@@ -2703,6 +2933,8 @@ void EditorWindow::commandRegionMode(int mode) {
         EditRegion region = document_.regions()[static_cast<size_t>(index)];
         // La modalita' si puo' assegnare anche a un evento escluso: viene
         // conservata e sara' applicata quando l'evento verra' reincluso.
+        if(region.kind==DetectionKind::Click && mode!=0)continue;
+        if(region.kind==DetectionKind::Click)region.repair=false;
         region.editMode = std::max(0, std::min(2, mode));
         document_.updateRegion(index, region);
         if (!region.enabled || !region.approved) ++pending;
@@ -2730,6 +2962,8 @@ void EditorWindow::commandRegionGlobalMode(int mode) {
     for (size_t i = 0; i < document_.regions().size(); ++i) {
         EditRegion region = document_.regions()[i];
         if (!region.enabled || !region.approved) continue; // le eccezioni restano
+        if(region.kind==DetectionKind::Click && defaultEditMode_!=0)continue;
+        if(region.kind==DetectionKind::Click)region.repair=false;
         region.editMode = defaultEditMode_;
         document_.updateRegion(static_cast<int>(i), region);
         ++changed;
@@ -2820,35 +3054,70 @@ void EditorWindow::commandRegionMarginPreset(double marginMs) {
     markDocumentChanged(false);
 }
 
-void EditorWindow::commandAuditionRegion() {
+void EditorWindow::commandAuditionRegion(int signal) {
     const int index = view_.selectedRegion();
     if (index < 0 || index >= static_cast<int>(document_.regions().size())) {
-        setStatusMessage("selezionare un respiro");
+        setStatusMessage("selezionare un evento");
         return;
     }
     const EditRegion& region = document_.regions()[static_cast<size_t>(index)];
-    view_.setSelection(region.startSample, region.endSample);
-    abOriginal_ = true;
-    commandPlayMode(true);
-    setStatusMessage("ascolto dell'evento selezionato (originale)");
+    const int64_t padding = static_cast<int64_t>(document_.sampleRate() * .2);
+    view_.setSelection(std::max<int64_t>(0, region.startSample - padding),
+                       std::min(document_.frameCount(), region.endSample + padding));
+    commandStop();
+    if (signal == 2) onCommand(EditorCommand::kPreviewResidual);
+    else commandPlayMode(signal == 0);
+    regionAudition_ = player_.isPlaying();
+    regionAuditionSignal_ = signal;
 }
 
 void EditorWindow::commandRegionStep(int delta) {
-    const int count = static_cast<int>(document_.regions().size());
-    if (count == 0) {
-        setStatusMessage("nessun evento");
-        return;
+    const auto& regions = document_.regions();
+    std::vector<int> order;
+    for (int i = 0; i < static_cast<int>(regions.size()); ++i) if (view_.regionVisible(i)) order.push_back(i);
+    if (order.empty()) { setStatusMessage("nessun evento nel filtro corrente"); return; }
+    auto less = [&](int a, int b) {
+        if (regions[a].startSample != regions[b].startSample) return regions[a].startSample < regions[b].startSample;
+        if (regions[a].endSample != regions[b].endSample) return regions[a].endSample < regions[b].endSample;
+        return a < b;
+    };
+    std::sort(order.begin(), order.end(), less);
+    const int current = view_.selectedRegion();
+    int index = delta > 0 ? order.front() : order.back();
+    if (current >= 0 && current < static_cast<int>(regions.size())) {
+        if (delta > 0) {
+            auto next = std::upper_bound(order.begin(), order.end(), current, less);
+            index = next == order.end() ? order.front() : *next;
+        } else {
+            auto next = std::lower_bound(order.begin(), order.end(), current, less);
+            index = next == order.begin() ? order.back() : *std::prev(next);
+        }
     }
-    int index = view_.selectedRegion();
-    index = index < 0 ? (delta > 0 ? 0 : count - 1) : (index + delta + count) % count;
-    int attempts = 0;
-    while (!view_.regionVisible(index) && attempts++ < count) index = (index + delta + count) % count;
-    if (!view_.regionVisible(index)) { setStatusMessage("nessun evento nel filtro corrente"); return; }
     view_.setSelectedRegion(index);
     const EditRegion& region = document_.regions()[static_cast<size_t>(index)];
+    const bool resume = regionAudition_ && player_.isPlaying();
+    const int signal = regionAuditionSignal_;
+    commandStop();
+    view_.clearSelection();
     view_.setPlayhead(region.startSample);
+    const int64_t padding = static_cast<int64_t>(document_.sampleRate() * (region.kind == DetectionKind::Click ? .03 : .25));
+    view_.zoomToRange(region.startSample - padding, region.endSample + padding);
+    refreshRegionPanel(true);
     updateStatusBar();
     updateCommandState();
+    if (resume) commandAuditionRegion(signal);
+}
+
+bool EditorWindow::ensurePreviewCurrent() {
+    studio::EditPlan current;
+    std::string error;
+    if (!buildEditPlan(&current, &error)) { hasPreview_=false; setStatusMessage(error); return false; }
+    if (!hasPreview_ || previewAudioRevision_ != document_.audioRevision() ||
+        previewSignature_ != studio::renderPlanSignature(current)) {
+        hasPreview_=false;
+        commandPreview();
+    }
+    return hasPreview_;
 }
 
 void EditorWindow::commandPreview() {
@@ -2866,16 +3135,19 @@ void EditorWindow::commandPreview() {
     }
     auto copy = std::make_shared<std::vector<float>>(preview_.audio.samples);
     previewAudio_ = copy;
+    previewSignature_ = studio::renderPlanSignature(plan);
+    previewAudioRevision_ = document_.audioRevision();
     hasPreview_ = true;
     engineApplied_ = preview_.appliedEvents; engineRejected_ = preview_.rejectedEvents;
+    engineDeclined_ = preview_.declinedEvents;
     refreshRegionPanel(true);
     player_.stop();
     char message[256] = {};
     snprintf(message, sizeof(message),
-             "anteprima pronta: %.3f -> %.3f s (%.3f s rimossi, %d interventi)",
+             "anteprima pronta: %.3f -> %.3f s (%.3f s rimossi, %d interventi, %d click conservati per rischio vocale)",
              document_.audio().durationSeconds(), preview_.audio.durationSeconds(),
              static_cast<double>(preview_.removedSamples) / std::max(1, document_.sampleRate()),
-             preview_.appliedEvents);
+             preview_.appliedEvents,preview_.declinedEvents);
     setStatusMessage(message);
     updateStatusBar();
 }
@@ -2951,10 +3223,7 @@ void EditorWindow::commandSetExportFormat(int commandId) {
 }
 
 void EditorWindow::commandApplyPreview() {
-    if (!hasPreview_) {
-        commandPreview();
-        if (!hasPreview_) return;
-    }
+    if (!ensurePreviewCurrent()) return;
     const std::string path = askExportPath();
     if (path.empty()) return;
     std::error_code pathError;
@@ -3029,11 +3298,15 @@ void EditorWindow::commandAnalyze() {
 }
 
 void EditorWindow::commandDetectorMode(const std::string& mode) {
+    if(mode!="dsp" && mode!="ai" && mode!="fusion")return;
     studioDetector_ = mode;
     std::string label = "DSP";
     if (mode == "ai") label = "Respiro-en";
     else if (mode == "fusion") label = "DSP + Respiro-en";
-    setStatusMessage("metodo di analisi: " + label);
+    std::string error;
+    writeTextAtomic(detectorSettingsDirectory()+"/analysis_method.txt",mode,&error);
+    refreshDeviceStatus();updateCommandState();
+    setStatusMessage(error.empty()?"metodo di analisi: " + label:error);
 }
 
 
@@ -3671,7 +3944,7 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
         setStatusMessage("selezionare almeno un evento da etichettare");
         return;
     }
-    if (label == LearningLabel::MissedBreath) {
+    if (label == LearningLabel::MissedBreath || label == LearningLabel::MissedClick) {
         bool hasManual = false;
         for (int index : indices) {
             if (index >= 0 && index < static_cast<int>(document_.regions().size()) &&
@@ -3680,7 +3953,7 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
             }
         }
         if (!hasManual) {
-            setStatusMessage("per un respiro mancato aggiungere prima una regione manuale");
+            setStatusMessage("per un evento mancato aggiungere prima una regione manuale");
             return;
         }
     }
@@ -3688,9 +3961,18 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
     for (int index : indices) {
         if (index < 0 || index >= static_cast<int>(document_.regions().size())) continue;
         EditRegion region = document_.regions()[static_cast<size_t>(index)];
-        if (region.kind != DetectionKind::Breath || region.manualOperation) continue;
+        const bool clickLabel = label==LearningLabel::ClickConfirmed || label==LearningLabel::ClickFalsePositive ||
+            label==LearningLabel::MissedClick || label==LearningLabel::MouthClickConfirmed || label==LearningLabel::VocalTransient;
+        if(label==LearningLabel::MissedClick && !region.fromDetection)region.kind=DetectionKind::Click;
+        if (label!=LearningLabel::EditorialExclusion && label!=LearningLabel::Unverified &&
+            ((clickLabel && region.kind!=DetectionKind::Click) || (!clickLabel && region.kind!=DetectionKind::Breath))) continue;
+        if (clickLabel) { region.manualOperation=false; region.repair=true; region.editMode=0; }
+        if (region.manualOperation && label!=LearningLabel::EditorialExclusion && label!=LearningLabel::Unverified) continue;
         region.learningLabel = learningLabelName(label);
         switch (label) {
+            case LearningLabel::ClickConfirmed:
+            case LearningLabel::MissedClick:
+            case LearningLabel::MouthClickConfirmed:
             case LearningLabel::BreathConfirmed:
             case LearningLabel::MissedBreath:
                 region.enabled = true;
@@ -3698,6 +3980,8 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
                 region.trainingEligible = true;
                 region.decisionSource = "user";
                 break;
+            case LearningLabel::ClickFalsePositive:
+            case LearningLabel::VocalTransient:
             case LearningLabel::FalsePositive:
                 region.enabled = false;
                 region.approved = false;
@@ -3731,68 +4015,74 @@ void EditorWindow::commandLearningLabel(LearningLabel label) {
     setStatusMessage(std::string("etichetta: ") + learningLabelName(label));
 }
 
-void EditorWindow::commandTrainPersonalProfile() {
-    std::vector<LearningExample> examples = collectLearningExamples(document_);
+void EditorWindow::commandTrainPersonalProfile(DetectionKind kind) {
+    auto& selectedProfile=kind==DetectionKind::Click?clickProfile_:personalProfile_;
+    auto& selectedActive=kind==DetectionKind::Click?clickProfileActive_:personalProfileActive_;
+    std::vector<LearningExample> examples = collectLearningExamples(document_,kind);
     for (int i = 0; i < static_cast<int>(tracks_.size()); ++i) {
         if (i == activeTrack_) continue;
         const AudioDocument* track = trackDocument(i);
         if (!track || !track->isLoaded()) continue;
-        std::vector<LearningExample> more = collectLearningExamples(*track);
+        std::vector<LearningExample> more = collectLearningExamples(*track,kind);
         examples.insert(examples.end(), more.begin(), more.end());
     }
     std::string error;
     PersonalProfile trained;
-    if (!trainPersonalProfile(examples, trained, &error)) {
+    if (!trainPersonalProfile(examples, trained, &error,kind)) {
         MessageBoxW(window_, toWide("Profilo non creato:\n\n" + error).c_str(),
                     L"Apprendimento dalle correzioni", MB_OK | MB_ICONINFORMATION);
         setStatusMessage("profilo non creato: " + error);
         return;
     }
-    const std::string path = detectorSettingsDirectory() + "\\personal_profile.ini";
+    const std::string path = detectorSettingsDirectory() + (kind==DetectionKind::Click?"\\personal_click_profile.ini":"\\personal_profile.ini");
     if (!savePersonalProfile(path, trained, &error)) {
         MessageBoxW(window_, toWide("Profilo non salvato:\n\n" + error).c_str(),
                     L"Apprendimento dalle correzioni", MB_OK | MB_ICONERROR);
         return;
     }
-    personalProfile_ = trained;
-    personalProfileActive_ = false;
+    selectedProfile = trained;
+    selectedActive = false;
     wchar_t message[768] = {};
     swprintf(message, 768,
              L"Profilo personale creato e validato.\n\n"
              L"Positivi: %d, negativi: %d, esempi di validazione: %d\n"
              L"Accuratezza bilanciata sul file separato: %.2f (proposte generali %.2f)\n\n"
              L"Mancati: %d (generale %d), falsi positivi: %d (generale %d).\n"
-             L"Il calibratore filtra le proposte; i respiri mancati restano da aggiungere.\n\n"
+             L"Il calibratore filtra le proposte; gli eventi mancati restano da aggiungere.\n\n"
              L"Il profilo NON modifica i pesi Respiro-en. Attivalo dal menu "
              L"Apprendimento per applicarlo alle prossime analisi.",
              trained.positives, trained.negatives, trained.validationExamples,
              trained.validationBalancedAccuracy, trained.baselineBalancedAccuracy,
              trained.validationMisses, trained.baselineMisses,
              trained.validationFalsePositives, trained.baselineFalsePositives);
-    MessageBoxW(window_, message, L"Profilo personale creato",
+    MessageBoxW(window_, message, kind==DetectionKind::Click?L"Profilo click creato":L"Profilo respiri creato",
                 MB_OK | MB_ICONINFORMATION);
     setStatusMessage("profilo personale creato; attivalo dal menu Apprendimento");
 }
 
-void EditorWindow::commandActivatePersonalProfile(bool activate) {
-    if (activate && !personalProfile_.valid) {
-        const std::string path = detectorSettingsDirectory() + "\\personal_profile.ini";
+void EditorWindow::commandActivatePersonalProfile(bool activate, DetectionKind kind) {
+    auto& selectedProfile=kind==DetectionKind::Click?clickProfile_:personalProfile_;
+    auto& selectedActive=kind==DetectionKind::Click?clickProfileActive_:personalProfileActive_;
+    if (activate && !selectedProfile.valid) {
+        const std::string path = detectorSettingsDirectory() + (kind==DetectionKind::Click?"\\personal_click_profile.ini":"\\personal_profile.ini");
         std::string error;
-        if (!loadPersonalProfile(path, personalProfile_, &error)) {
+        if (!loadPersonalProfile(path, selectedProfile, &error) || selectedProfile.kind!=kind) {
             MessageBoxW(window_, toWide("Nessun profilo personale valido:\n\n" + error).c_str(),
                         L"Profilo personale", MB_OK | MB_ICONINFORMATION);
             return;
         }
     }
-    personalProfileActive_ = activate && personalProfile_.valid;
-    setStatusMessage(personalProfileActive_ ? "profilo personale attivo"
+    selectedActive = activate && selectedProfile.valid;
+    setStatusMessage(selectedActive ? "profilo personale attivo"
                                             : "profilo generale attivo");
     updateCommandState();
     updateStatusBar();
 }
 
-void EditorWindow::commandLearningStatus() {
-    if (!personalProfile_.valid) {
+void EditorWindow::commandLearningStatus(DetectionKind kind) {
+    auto& selectedProfile=kind==DetectionKind::Click?clickProfile_:personalProfile_;
+    auto& selectedActive=kind==DetectionKind::Click?clickProfileActive_:personalProfileActive_;
+    if (!selectedProfile.valid) {
         MessageBoxW(window_, L"Nessun profilo personale valido.\n\n"
                               L"Le correzioni sono raccolte, ma il profilo viene creato "
                               L"solo con esempi esplicitamente confermati da almeno due "
@@ -3809,11 +4099,11 @@ void EditorWindow::commandLearningStatus() {
              L"Soglia calibrata: %.2f\n\n"
              L"Nota: questo e' un calibratore personale su score/feature DSP. "
              L"I pesi ONNX di Respiro-en non vengono modificati.",
-             personalProfileActive_ ? L"ATTIVO" : L"non attivo",
-             personalProfile_.createdAt.c_str(), personalProfile_.positives,
-             personalProfile_.negatives, personalProfile_.validationExamples,
-             personalProfile_.validationBalancedAccuracy,
-             personalProfile_.baselineBalancedAccuracy, personalProfile_.threshold);
+             selectedActive ? L"ATTIVO" : L"non attivo",
+             selectedProfile.createdAt.c_str(), selectedProfile.positives,
+             selectedProfile.negatives, selectedProfile.validationExamples,
+             selectedProfile.validationBalancedAccuracy,
+             selectedProfile.baselineBalancedAccuracy, selectedProfile.threshold);
     MessageBoxW(window_, message, L"Apprendimento dalle correzioni",
                 MB_OK | MB_ICONINFORMATION);
 }
@@ -3886,8 +4176,7 @@ void EditorWindow::commandZoomSelection() {
     const int64_t lunghezza = view_.selectionEnd() - view_.selectionStart();
     if (lunghezza <= 0) return;
 
-    view_.setSelection(view_.selectionStart(), view_.selectionEnd());
-    view_.zoomToFit();
+    view_.zoomToSelection();
     setStatusMessage("zoom sulla selezione");
     updateStatusBar();
 }
@@ -3910,7 +4199,7 @@ void EditorWindow::commandPlay() {
     renderIfNeeded(true);
     if (!ensurePlayerOpen()) return;
 
-    player_.play(view_.hasSelection() ? view_.selectionStart() : view_.playhead());
+    player_.play(view_.hasSelection() ? view_.selectionStart() : view_.playhead(), view_.hasSelection() ? view_.selectionEnd() : -1);
     updateCommandState();
 }
 
@@ -3929,7 +4218,7 @@ void EditorWindow::commandPlaySelection() {
     if (!ensurePlayerOpen()) return;
 
     view_.setPlayhead(view_.selectionStart());
-    player_.play(view_.selectionStart());
+    player_.play(view_.selectionStart(), view_.selectionEnd());
     updateCommandState();
 }
 
@@ -3940,9 +4229,10 @@ void EditorWindow::commandPlayMode(bool original) {
     if (wasPlaying) commandStop();
 
     if (original) {
-        if (!originalAudio_ || originalAudio_->size() != document_.audio().samples.size()) {
+        if (!originalAudio_ || originalAudioRevision_ != document_.audioRevision()) {
             auto copy = std::make_shared<std::vector<float>>(document_.audio().samples);
             originalAudio_ = copy;
+            originalAudioRevision_ = document_.audioRevision();
         }
         if (!ensurePlayerOpen()) return;
         player_.setAudio(originalAudio_, document_.frameCount());
@@ -3950,8 +4240,7 @@ void EditorWindow::commandPlayMode(bool original) {
         abOriginal_ = true;
         setStatusMessage("ascolto ORIGINALE");
     } else if (studioMode_) {
-        if (!hasPreview_) commandPreview();
-        if (!hasPreview_) return;
+        if (!ensurePreviewCurrent()) return;
         if (!ensurePlayerOpen()) return;
         player_.setAudio(previewAudio_, preview_.audio.frameCount());
         playerUsesPreview_ = true;
@@ -3965,10 +4254,12 @@ void EditorWindow::commandPlayMode(bool original) {
     }
     int64_t startFrame = wasPlaying ? heardFrame :
         (view_.hasSelection() ? view_.selectionStart() : view_.playhead());
+    int64_t endFrame = view_.hasSelection() ? view_.selectionEnd() : -1;
     if (!original && studioMode_ && hasPreview_) {
         startFrame = preview_.map.mapOriginal(startFrame);
+        if (endFrame >= 0) endFrame = preview_.map.mapOriginal(endFrame);
     }
-    player_.play(startFrame);
+    player_.play(startFrame, endFrame);
     updateCommandState();
 }
 
@@ -3980,6 +4271,7 @@ int64_t EditorWindow::playerPositionInDocument() const {
 void EditorWindow::commandStop() {
     if (player_.isPlaying()) view_.setPlayhead(playerPositionInDocument());
     player_.stop();
+    regionAudition_ = false;
     updateCommandState();
 }
 

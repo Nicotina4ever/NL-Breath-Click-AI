@@ -18,7 +18,8 @@ function V.draw(ctx,events,clicked,top)
     local sr=ctx.state.plan.sample_rate
     local valid,first,last=pcall(X.view,ctx)
     if not valid then text(24,top+15,tostring(first),1,.65,.55); return end
-    local a,b=e.start,e['end']; local pad=math.max(sr*.25,(b-a)*.4)
+    local a,b=e.start,e['end']
+    local pad=math.floor((e.kind==1 and math.max(sr*.015,(b-a)*1.5) or math.max(sr*.25,(b-a)*.4))+.5)
     local lo,hi=math.max(0,a-pad),math.min(ctx.state.frames,b+pad)
     if V.drag then lo,hi=V.drag.lo,V.drag.hi; a,b=V.drag.a,V.drag.b end
     local left,right,y,height=28,gfx.w-28,top+38,77
@@ -55,7 +56,8 @@ function V.draw(ctx,events,clicked,top)
     text(24,top+121,string.format('Nell\'item attuale: %.3f – %.3f s · %s',start,finish,e.bcs_applied and 'applicato' or 'proposto'),.65,.76,.81)
     UI.wave_handles={a={x=xpos(a),y=y+16},b={x=xpos(b),y=y+height-16},left=left,right=right,lo=lo,hi=hi,top=y,height=height}
     if clicked and not X.busy and a>=first and b<=last and inside(14,top,gfx.w-28,145) then
-        local edge=math.abs(gfx.mouse_x-xpos(a))<12 and 'a' or (math.abs(gfx.mouse_x-xpos(b))<12 and 'b')
+        local da,db=math.abs(gfx.mouse_x-xpos(a)),math.abs(gfx.mouse_x-xpos(b))
+        local edge=da<12 and da<=db and 'a' or (db<12 and 'b')
         if edge then V.drag={edge=edge,index=index,a=a,b=b,lo=lo,hi=hi,first=first,last=last} end
     end
     if V.drag then

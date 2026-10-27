@@ -14,6 +14,57 @@ result = json.loads(args.report.read_text(encoding='utf-8-sig'))
 assert result['status'] == 'passed'
 source = Path(result['source'])
 raw, rate = sf.read(source, dtype='float32', always_2d=True)
+if result.get('professional'):
+    metrics=[]
+    for entry in result['outputs']:
+        original, sr = sf.read(entry['source'],dtype='float32',always_2d=True)
+        edited, er = sf.read(entry['output'],dtype='float32',always_2d=True)
+        assert sr==er and original.shape==edited.shape
+        edit_report=json.loads(Path(entry['output']+'.edit.json').read_text(encoding='utf-8-sig'))
+        mask=np.zeros(len(original),dtype=bool)
+        for op in edit_report['operations']:
+            if op['applied']:mask[op['start']:op['end']]=True
+        assert np.array_equal(original[~mask],edited[~mask]),'Unselected take samples changed'
+        residual_error=0.
+        if entry.get('residual'):
+            removed, rr=sf.read(entry['residual'],dtype='float32',always_2d=True)
+            assert rr==sr and removed.shape==original.shape
+            residual_error=float(np.max(np.abs(removed-(original-edited))))
+            assert residual_error<1e-7
+        metrics.append(dict(frames=len(original),outside_pcm_exact=True,residual_max_error=residual_error))
+    report=dict(status='passed',metrics=metrics)
+    args.report.with_name('professional_audio_validation.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+    print(json.dumps(report));raise SystemExit(0)
+if 'clean' in result:  # Actual sources attached by mouth_click.lua, not a CLI simulation.
+    clean, _ = sf.read(result['clean'], dtype='float32', always_2d=True)
+    edited, sr = sf.read(result['output'], dtype='float32', always_2d=True)
+    residual, _ = sf.read(result['residual'], dtype='float32', always_2d=True)
+    attenuated, _ = sf.read(result['attenuated'], dtype='float32', always_2d=True)
+    assert sr == rate and raw.shape == clean.shape == edited.shape == residual.shape == attenuated.shape
+    changed = np.any(raw != edited, axis=1)
+    assert np.any(changed) and np.max(np.abs(edited-clean)) < .001
+    assert np.max(np.abs(residual-(raw-edited))) < 1e-7
+    # A predictive repair may reconstruct some requested samples EXACTLY.
+    # Its actual PCM differences are not the full region to which gain applies.
+    edit_report = json.loads(Path(str(result['output'])+'.edit.json').read_text(encoding='utf-8-sig'))
+    region = np.zeros(len(raw), dtype=bool)
+    for operation in edit_report['operations']:
+        if operation['applied']:
+            first, last = operation['start'], operation['end']
+            assert 0 <= first < last <= len(raw)
+            region[first:last] = True
+    assert np.any(region) and np.all(~changed | region)
+    assert np.max(np.abs(attenuated[region]-raw[region]*10**(-12/20))) < 1e-7
+    assert np.array_equal(attenuated[~region],raw[~region])
+    uncertain, _ = sf.read(result['declined_source'], dtype='float32', always_2d=True)
+    preserved, _ = sf.read(result['declined_output'], dtype='float32', always_2d=True)
+    assert np.array_equal(uncertain,preserved), 'Declined reconstruction changed actual take PCM'
+    report = dict(status='passed', frames=len(raw), modified_frames=int(np.count_nonzero(changed)),
+                  repair_region_frames=int(np.count_nonzero(region)),
+                  residual_max_error=float(np.max(np.abs(residual-(raw-edited)))), declined_pcm_exact=True)
+    args.report.with_name('click_audio_validation.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+    print(json.dumps(report));raise SystemExit(0)
+
 direct = 'prepared' in result
 original = sf.read(result['prepared'], dtype='float32', always_2d=True)[0] if direct else raw[36000:252000]
 metrics = []

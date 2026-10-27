@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MPL-2.0
+﻿# SPDX-License-Identifier: MPL-2.0
 # ============================================================================
 #  smoke_test.ps1 - Prova di avvio dell'editor
 #
@@ -16,6 +16,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 
 $workDir = Split-Path -Parent $Editor
 $testWav = Join-Path $workDir 'editor_smoke.wav'
@@ -52,7 +53,8 @@ if ($process.HasExited) {
 Write-Host "  [ OK ] l'editor e' ancora in esecuzione dopo l'avvio"
 
 # La finestra principale deve esistere e avere un titolo.
-$title = $process.MainWindowTitle
+$hwnd = Wait-BcEditorWindow -Process $process
+$title = [BcTestWindow]::Text($hwnd)
 if ([string]::IsNullOrWhiteSpace($title)) {
     Write-Host "FALLITO: nessuna finestra principale"
     $failures++
@@ -84,7 +86,7 @@ public class Win32Probe {
 "@
 
 $children = 0
-$child = [Win32Probe]::GetWindow($process.MainWindowHandle, 5)   # GW_CHILD
+$child = [Win32Probe]::GetWindow($hwnd, 5)   # GW_CHILD
 if ($child -eq [IntPtr]::Zero) {
     Write-Host "FALLITO: la finestra non ha controlli figli."
     Write-Host "         Sintomo tipico: window_ assegnato dopo WM_CREATE, quindi i"
@@ -99,7 +101,7 @@ if ($child -eq [IntPtr]::Zero) {
     Write-Host "  [ OK ] la finestra contiene $children controlli figli"
 }
 
-if ([Win32Probe]::GetMenu($process.MainWindowHandle) -eq [IntPtr]::Zero) {
+if ([Win32Probe]::GetMenu($hwnd) -eq [IntPtr]::Zero) {
     Write-Host "FALLITO: la finestra non ha una barra dei menu"
     $failures++
 } else {
@@ -108,7 +110,7 @@ if ([Win32Probe]::GetMenu($process.MainWindowHandle) -eq [IntPtr]::Zero) {
 
 # --- chiusura --------------------------------------------------------------
 Write-Host "Chiusura..."
-$null = $process.CloseMainWindow()
+$null = [BcTestWindow]::PostMessage($hwnd,0x0010,[IntPtr]::Zero,[IntPtr]::Zero)
 Start-Sleep -Seconds 3
 $process.Refresh()
 

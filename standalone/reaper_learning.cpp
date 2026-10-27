@@ -20,7 +20,7 @@ bool documentForPlan(const bc::studio::EditPlan& plan, bc::AudioDocument& doc, s
         error = "registrazione cambiata durante la lettura delle etichette"; return false;
     }
     for (const auto& e : plan.events) {
-        if (!e.trainingEligible || e.decisionSource != "user" || e.kind != bc::DetectionKind::Breath || e.manualOperation) continue;
+        if (!e.trainingEligible || e.decisionSource != "user" || e.manualOperation) continue;
         if (e.startSample < 0 || e.endSample <= e.startSample || e.endSample > doc.audio().frameCount()) {
             error = "etichetta fuori dalla registrazione originale"; return false;
         }
@@ -29,7 +29,7 @@ bool documentForPlan(const bc::studio::EditPlan& plan, bc::AudioDocument& doc, s
         r.score = e.score; r.learningLabel = e.learningLabel;
         r.trainingEligible = true; r.decisionSource = "user";
         r.enabled = e.enabled; r.approved = e.approved;
-        r.fromDetection = e.learningLabel != "missed_breath" && e.source != "manual";
+        r.fromDetection = e.learningLabel != "missed_breath" && e.learningLabel != "missed_click" && e.source != "manual";
         r.manualOperation = false;
         doc.addRegion(r);
     }
@@ -40,6 +40,8 @@ bool documentForPlan(const bc::studio::EditPlan& plan, bc::AudioDocument& doc, s
 int commandLearning(int argc, char** argv) {
     const std::string command = argv[1];
     std::string output, profile, error;
+    bc::DetectionKind kind=bc::DetectionKind::Breath;
+    bool kindSpecified=false;
     std::vector<std::string> plans;
     for (int i = 2; i < argc; ++i) {
         std::string flag = argv[i];
@@ -47,6 +49,11 @@ int commandLearning(int argc, char** argv) {
         if (flag == "--out") output = argv[i];
         else if (flag == "--profile") profile = argv[i];
         else if (flag == "--plan") plans.push_back(argv[i]);
+        else if (flag == "--kind") {
+            kindSpecified=true;
+            if(std::string(argv[i])=="click")kind=bc::DetectionKind::Click;
+            else if(std::string(argv[i])!="breath")return 2;
+        }
         else return 2;
     }
     if (output.empty() || plans.empty()) return 2;
@@ -62,9 +69,10 @@ int commandLearning(int argc, char** argv) {
             bc::PersonalProfile personal;
             bc::AudioDocument doc;
             if (plans.size() != 1 || !bc::loadPersonalProfile(profile, personal, &error) ||
-                !doc.load(plan.sourcePath, &error)) { if (error.empty()) error="profilo non valido"; break; }
+                !documentForPlan(plan,doc,error)) { if (error.empty()) error="profilo non valido"; break; }
+            if(kindSpecified && personal.kind!=kind){error="categoria del profilo diversa da quella richiesta";break;}
             for (auto& e : plan.events) {
-                if (e.trainingEligible && e.decisionSource == "user") continue;
+                if (e.kind != personal.kind || e.decisionSource == "user") continue;
                 if (!personal.accepts(bc::extractLearningFeatures(doc.audio(), e.startSample, e.endSample, e.score))) {
                     e.enabled = e.approved = false; e.reason = "personal_profile";
                 }
@@ -73,7 +81,7 @@ int commandLearning(int argc, char** argv) {
         } else {
             bc::AudioDocument doc;
             if (!documentForPlan(plan, doc, error)) break;
-            const auto more = bc::collectLearningExamples(doc);
+            const auto more = bc::collectLearningExamples(doc,kind);
             examples.insert(examples.end(), more.begin(), more.end());
             if (command == "labels-export") {
                 if (plans.size() != 1) return 2;
@@ -86,7 +94,7 @@ int commandLearning(int argc, char** argv) {
     }
     if (error.empty() && command == "profile-train") {
         bc::PersonalProfile trained;
-        if (bc::trainPersonalProfile(examples, trained, &error))
+        if (bc::trainPersonalProfile(examples, trained, &error,kind))
             bc::savePersonalProfile(output, trained, &error);
     }
     if (!error.empty()) { std::cerr << error << '\n'; return 1; }

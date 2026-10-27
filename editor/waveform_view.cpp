@@ -258,6 +258,26 @@ void WaveformView::zoomToFit() {
     if (onViewChanged) onViewChanged();
 }
 
+void WaveformView::zoomToSelection() {
+    if (!document_ || !document_->isLoaded() || !hasSelection() || width_ <= 0) return;
+    const double span = std::min<double>(document_->frameCount(),
+                                        3.0 * (selectionEnd_ - selectionStart_));
+    framesPerPixel_ = std::max(.01, span / width_);
+    const int64_t center = selectionStart_ + (selectionEnd_ - selectionStart_) / 2;
+    firstFrame_ = center - visibleFrameCount() / 2;
+    clampView();
+    invalidate();
+    if (onViewChanged) onViewChanged();
+}
+
+void WaveformView::zoomToRange(int64_t start, int64_t end) {
+    if (!document_ || !document_->isLoaded() || width_ <= 0 || end <= start) return;
+    framesPerPixel_ = std::max(.01, static_cast<double>(end - start) / width_);
+    firstFrame_ = start;
+    clampView(); invalidate();
+    if (onViewChanged) onViewChanged();
+}
+
 void WaveformView::zoomAround(double factor, int64_t anchorFrame) {
     const double before = framesPerPixel_;
     framesPerPixel_ = std::max(0.01, std::min(before * factor, 100000.0));
@@ -623,6 +643,9 @@ void WaveformView::drawRegions(HDC dc, const RECT& area, bool backgroundOnly) {
 
         COLORREF fillColor = isBreath ? EditorColors::kBreathSoft : EditorColors::kClickSoft;
         COLORREF edgeColor = isBreath ? EditorColors::kBreath : EditorColors::kClick;
+        if (region.kind==DetectionKind::Click && region.classification=="mouth_click") {
+            fillColor=RGB(78,35,77);edgeColor=RGB(220,115,220);
+        }
         if (region.manualOperation) {
             fillColor = RGB(28, 70, 82); edgeColor = RGB(90, 210, 220);
         }
@@ -778,14 +801,20 @@ bool WaveformView::regionVisible(int index) const {
         case 3: return !r.fromDetection;
         case 4: return r.fromDetection;
         case 5: return !r.enabled || !r.approved;
+        case 7: return r.kind==DetectionKind::Click && r.classification=="digital_click";
+        case 8: return r.kind==DetectionKind::Click && (r.classification=="saliva_click" || r.classification=="mouth_click");
+        case 9: return r.learningLabel=="false_positive" || r.learningLabel=="click_false_positive";
+        case 10: return r.fromDetection && r.enabled && !r.approved && r.decisionSource!="user";
+        case 11: return r.kind==DetectionKind::Click && r.classification!="speech_overlap" && r.classification!="vocal_transient";
+        case 12: return !r.repairFeedback.empty();
         case 6: return r.fromDetection && !r.trainingEligible &&
-            (r.classification == "dsp" || r.score < .5f);
+            (r.classification == "dsp" || r.score < .5f || detectionReviewRequired(r.kind,r.classification));
         default: return true;
     }
 }
 
 void WaveformView::setRegionFilter(int filter) {
-    regionFilter_ = std::clamp(filter, 0, 6);
+    regionFilter_ = std::clamp(filter, 0, 12);
     clearRegionSelection(); invalidate();
     if (onRegionSelected) onRegionSelected(-1);
 }

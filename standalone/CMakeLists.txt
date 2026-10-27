@@ -38,6 +38,7 @@ add_executable(bc_studio WIN32
     studio_dialogs.cpp
     studio_batch.cpp
     "${CMAKE_SOURCE_DIR}/editor/editor_project.cpp"
+    "${CMAKE_SOURCE_DIR}/editor/analysis_task.cpp"
     "${CMAKE_SOURCE_DIR}/editor/editor_region_panel.cpp"
     "${CMAKE_SOURCE_DIR}/editor/detector_settings_store.cpp"
     "${CMAKE_SOURCE_DIR}/editor/detection_preview.cpp"
@@ -221,9 +222,18 @@ endif()
 
 # Test the selected build tree; never fall back to a pre-existing workspace binary.
 if(WIN32 AND BC_BUILD_STUDIO)
+add_test(NAME bc_studio_review_workflow COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+    -File "${CMAKE_SOURCE_DIR}/editor/review_workflow_test.ps1")
+set_tests_properties(bc_studio_review_workflow PROPERTIES TIMEOUT 120 RESOURCE_LOCK windows_gui)
+add_test(NAME bc_studio_analysis_worker COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+    -File "${CMAKE_SOURCE_DIR}/editor/analysis_worker_test.ps1")
+set_tests_properties(bc_studio_analysis_worker PROPERTIES TIMEOUT 120 RESOURCE_LOCK windows_gui)
 add_test(NAME bc_studio_rc2_gui COMMAND powershell -NoProfile -ExecutionPolicy Bypass
     -File "${CMAKE_SOURCE_DIR}/editor/rc2_workflow_test.ps1")
 set_tests_properties(bc_studio_rc2_gui PROPERTIES TIMEOUT 180 RESOURCE_LOCK windows_gui)
+add_test(NAME bc_workspace_retention COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+    -File "${CMAKE_SOURCE_DIR}/tests/test_workspace.ps1")
+set_tests_properties(bc_workspace_retention PROPERTIES TIMEOUT 30)
 endif()
 get_property(BC_DIRECTORY_TESTS DIRECTORY PROPERTY TESTS)
 foreach(BC_TEST IN LISTS BC_DIRECTORY_TESTS)

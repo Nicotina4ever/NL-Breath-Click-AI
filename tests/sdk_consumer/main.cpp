@@ -6,6 +6,12 @@ int main() {
     map.originalFrames=100;map.editedFrames=80;
     map.segments={{0,20,0,20},{40,100,20,80}};
     if(map.mapOriginal(60)!=40 || map.mapEdited(40)!=60)return 1;
-    std::cout<<"NL Audio Suite SDK: shared TimeMap engine OK\n";
+    bc::studio::AnalysisControl control;
+    control.cancelRequested=true;
+    bc::studio::Analysis previous;previous.frames=123;
+    std::string error;
+    if(bc::studio::analyzeFile("absent.wav",{},&previous,&error,&control) ||
+       previous.frames!=123 || error!="Analisi annullata")return 2;
+    std::cout<<"NL Audio Suite SDK: shared TimeMap and cancellable analysis OK\n";
     return 0;
 }

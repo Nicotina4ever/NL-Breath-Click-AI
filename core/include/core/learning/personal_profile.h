@@ -23,7 +23,8 @@ enum class LearningLabel {
     BreathConfirmed,
     FalsePositive,
     MissedBreath,
-    EditorialExclusion
+    EditorialExclusion,
+    ClickConfirmed, ClickFalsePositive, MissedClick, MouthClickConfirmed, VocalTransient
 };
 
 const char* learningLabelName(LearningLabel label);
@@ -49,6 +50,7 @@ struct LearningExample {
 
 struct PersonalProfile {
     int schema = 2;
+    DetectionKind kind = DetectionKind::Breath;
     bool valid = false;
     float bias = 0.0f;
     float weightScore = 0.0f;
@@ -82,13 +84,15 @@ LearningFeatures extractLearningFeatures(const AudioBuffer& audio,
 
 // Costruisce gli esempi solo dalle etichette esplicite. Esclusioni editoriali
 // e eventi non verificati non entrano nel training.
-std::vector<LearningExample> collectLearningExamples(const AudioDocument& document);
+std::vector<LearningExample> collectLearningExamples(const AudioDocument& document,
+    DetectionKind kind = DetectionKind::Breath);
 
 // Richiede esempi positivi e negativi da almeno due file distinti e una
 // validazione su file separati. In caso contrario restituisce false e spiega
 // il motivo; non produce un profilo "finto".
 bool trainPersonalProfile(const std::vector<LearningExample>& examples,
-                          PersonalProfile& profile, std::string* error);
+                          PersonalProfile& profile, std::string* error,
+                          DetectionKind kind = DetectionKind::Breath);
 
 bool savePersonalProfile(const std::string& path, const PersonalProfile& profile,
                          std::string* error = nullptr);

@@ -24,6 +24,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+. (Join-Path $root 'editor/test_window.ps1')
 $zip = if ([System.IO.Path]::IsPathRooted($ZipPath)) {
     [System.IO.Path]::GetFullPath($ZipPath)
 } else {
@@ -171,7 +172,7 @@ if (-not $StaticOnly) {
     Start-Sleep -Seconds 3
     $guiProcess.Refresh()
     if ($guiProcess.HasExited) { throw "GUI terminata subito (exit $($guiProcess.ExitCode))" }
-    if ($guiProcess.MainWindowHandle -eq 0) { throw 'GUI avviata ma senza finestra principale' }
+    [void](Wait-BcEditorWindow -Process $guiProcess)
     Stop-Process -Id $guiProcess.Id -Force
 
     # Avvio GUI senza encoder: deve restare avviabile; l'errore MP3 e' solo
@@ -183,7 +184,7 @@ if (-not $StaticOnly) {
     Start-Sleep -Seconds 3
     $guiNo.Refresh()
     if ($guiNo.HasExited) { throw "GUI terminata senza libmp3lame.dll: il codec non e opzionale" }
-    if ($guiNo.MainWindowHandle -eq 0) { throw 'GUI senza libmp3lame.dll senza finestra principale' }
+    [void](Wait-BcEditorWindow -Process $guiNo)
     Stop-Process -Id $guiNo.Id -Force
 }
 
@@ -193,6 +194,12 @@ if ($PythonExecutable) {
     foreach ($test in @('test_studio_pipeline.py','test_edit_engine.py','test_review_end_to_end.py','test_batch_review.py','test_portable_audio.py')) {
         & $python (Join-Path $root "standalone\tests\$test")
         if ($LASTEXITCODE -ne 0) { throw "Extracted package workflow failed: $test" }
+    }
+    $packageCapabilities = & $cli capabilities | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot read packaged engine capabilities' }
+    if ($packageCapabilities.mouth_click_engine -ge 1) {
+        & $python (Join-Path $root 'tests\test_mouth_click.py') --cli $cli
+        if ($LASTEXITCODE -ne 0) { throw 'Extracted package mouth-click audio regression failed' }
     }
     if (-not $StaticOnly) {
         $env:BC_TEST_BIN = $noDll

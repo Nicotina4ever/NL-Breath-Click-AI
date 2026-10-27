@@ -4,6 +4,23 @@
 # ============================================================================
 project(bc_tests LANGUAGES CXX)
 
+if(WIN32 AND BC_BUILD_STUDIO)
+    add_executable(bc_audio_player_tests test_audio_player.cpp "${CMAKE_SOURCE_DIR}/editor/audio_player.cpp")
+    target_include_directories(bc_audio_player_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+    target_link_libraries(bc_audio_player_tests PRIVATE winmm Threads::Threads)
+    set_target_properties(bc_audio_player_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+    add_test(NAME bc_audio_player_tests COMMAND bc_audio_player_tests)
+    set_tests_properties(bc_audio_player_tests PROPERTIES TIMEOUT 30 RESOURCE_LOCK windows_gui)
+endif()
+
+add_executable(bc_analysis_control_tests test_analysis_control.cpp)
+target_include_directories(bc_analysis_control_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(bc_analysis_control_tests PRIVATE BreathClick::StudioEngine)
+set_target_properties(bc_analysis_control_tests PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+bc_deploy_runtime_dependencies(bc_analysis_control_tests)
+add_test(NAME bc_analysis_control_tests COMMAND bc_analysis_control_tests)
+set_tests_properties(bc_analysis_control_tests PROPERTIES TIMEOUT 90)
+
 add_executable(bc_preview_tests test_detection_preview.cpp
     "${CMAKE_SOURCE_DIR}/editor/detection_preview_worker.cpp")
 target_include_directories(bc_preview_tests PRIVATE "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/core/include")

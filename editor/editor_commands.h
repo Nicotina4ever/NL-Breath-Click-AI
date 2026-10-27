@@ -16,6 +16,15 @@ enum Id : int {
     kManualHalve = 2505, kManualRestore = 2506, kTimeSelectionBounds = 2507,
     kRegionsInTimeSelection = 2508, kClicksDisable = 2509, kClicksEnable = 2510,
     kRegionFilter = 2511,
+    kLearningClickConfirmed = 2540, kLearningClickFalsePositive = 2541,
+    kLearningMissedClick = 2542, kLearningMouthConfirmed = 2543, kLearningVocalTransient = 2544,
+    kLearningTrainClicks = 2554, kLearningActivateClicks = 2555, kLearningStatusClicks = 2556,
+    kDetectBreathsQuick = 2557, kDetectClicksQuick = 2558, kDetectorQuick = 2559,
+    kClickRepairAuto = 2545, kClickRepairLinear = 2546, kClickRepairPredictive = 2547,
+    kPreviewResidual = 2548, kClickRepairNone = 2549,
+    kRepairUnsatisfactory = 2550, kRepairFeedbackClear = 2551,
+    kReportMissedBreath = 2552, kReportMissedClick = 2553,
+    kReviewReport = 2560, kAuditionProcessed = 2561, kAuditionRemoved = 2562,
     // Aiuto.
     //
     // 1701 e non 1400: 1400 era gia' occupato da kViewZoomIn, quindi F1 e lo

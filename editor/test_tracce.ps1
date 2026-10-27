@@ -14,6 +14,7 @@
 # ============================================================================
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 
 Add-Type @"
 using System;
@@ -51,13 +52,7 @@ $wb     = Join-Path $env:TEMP 'bc_track_b.wav'
 # Due file, due tracce.
 $proc = Start-Process -WindowStyle Normal -FilePath $editor -ArgumentList "`"$wa`" `"$wb`"" -PassThru
 $hwnd = [IntPtr]::Zero
-for ($i = 0; $i -lt 40; $i++) {
-    Start-Sleep -Milliseconds 250
-    $proc.Refresh()
-    if ($proc.HasExited) { throw "l'editor e' uscito subito" }
-    if ($proc.MainWindowHandle -ne [IntPtr]::Zero) { $hwnd = $proc.MainWindowHandle; break }
-}
-if ($hwnd -eq [IntPtr]::Zero) { throw "finestra non trovata" }
+$hwnd = Wait-BcEditorWindow -Process $proc
 Start-Sleep -Milliseconds 900
 
 $script:pass = 0

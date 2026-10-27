@@ -29,6 +29,8 @@ def main():
     for name in REAPER_FILES:payload[name]=(root/'reaper'/name).read_bytes()
     payload['Install_REAPER.ps1']=(root/'packaging/Install_REAPER.ps1').read_bytes()
     payload['README.txt']=(root/'packaging/REAPER_README.txt').read_bytes()
+    if VERSION=='1.0.0-rc.3':
+        payload['PROVA_RC3.md']=(root/'docs/RELEASE_1.0.0-rc.3.md').read_bytes()
     info['product']='NL Breath Click Studio - REAPER Windows Beta'
     payload['BUILD_INFO.json']=(json.dumps(info,indent=2)+'\n').encode()
     payload['PACKAGE_MANIFEST.json']=json.dumps([

@@ -48,10 +48,11 @@ public:
     // Il vettore resta di proprieta' di chi chiama e deve restare valido.
     void setAudio(std::shared_ptr<const std::vector<float>> samples, int64_t frames);
 
-    void play(int64_t fromFrame);
+    void play(int64_t fromFrame, int64_t untilFrame = -1);
     void stop();
 
     bool isPlaying() const { return playing_.load(std::memory_order_relaxed); }
+    int takePlaybackError() { return playbackError_.exchange(0); }
 
     // Frame attualmente udibile, stimato sottraendo i blocchi ancora in coda.
     int64_t position() const;
@@ -76,7 +77,7 @@ private:
     };
 
     void threadMain();
-    void fillAndQueue(Buffer& buffer);
+    void fillAndQueue(Buffer& buffer, uint64_t generation);
     void stopThread();
     void releaseBuffers();
 #endif
@@ -98,6 +99,10 @@ private:
     std::atomic<bool> playing_{false};
     std::atomic<int64_t> nextFrame_{0};      // prossimo frame da scrivere
     std::atomic<int64_t> startFrame_{0};
+    std::atomic<int64_t> endFrame_{0};
+    std::atomic<uint64_t> transportGeneration_{0};
+    std::atomic<int> playbackError_{0};
+    std::mutex transportMutex_;
     std::atomic<float> monitorGain_{1.0f};
 
     std::string lastError_;

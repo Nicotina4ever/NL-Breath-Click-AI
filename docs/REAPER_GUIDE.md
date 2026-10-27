@@ -8,6 +8,19 @@ L'integrazione permette di rivedere e trattare i respiri direttamente nel
 progetto REAPER. Ogni intervento si applica alla stessa take, senza creare
 tracce duplicate permanenti. I file audio originali sul disco restano intatti.
 
+**Build locale RC3:** respiri e click sono indipendenti. **Filtro** sceglie
+gli eventi da mostrare e **Tutte** seleziona soltanto quelli visibili, per
+includerli, escluderli o trattarli insieme. Una selezione temporale stretta
+privilegia l'evento con i confini piu' vicini, anche quando un click si
+sovrappone a un respiro. **Crea profilo**, **Profilo** e **Carica profilo**
+permettono di gestire separatamente respiri e click; richiedono correzioni
+esplicite su registrazioni indipendenti. L'esclusione editoriale non addestra.
+Nella build di sviluppo **Precedente / Successivo** e P/N nel pannello seguono
+l'ordine temporale corrente e il filtro, anche dopo una modifica ai bordi.
+**Filtro** comprende anche eventi da decidere, impulsi/schiocchi e riparazioni
+insoddisfacenti. La forma d'onda ingrandisce i click brevi per separare le
+maniglie di inizio e fine; ogni trascinamento resta annullabile.
+
 Serve **Windows 10/11 x64 e REAPER 7.x x64**. REAPER non è incluso;
 la standalone e Python non sono necessari. Scegli una delle due installazioni seguenti.
 
@@ -86,7 +99,30 @@ al progetto**: contiene i media generati necessari per riaprire il lavoro.
 Gli originali non vengono riscritti; la cartella dei media elaborati non è
 una copia da eliminare durante il montaggio.
 
+Nella RC3 locale anche le proposte in revisione hanno bordi visibili sulla
+take. Puoi muovere i marker direttamente in REAPER: Elaborato e Solo rimosso
+rileggono i confini attuali. Se manca un bordo, compare **BORDI DA RIVEDERE**;
+correggi quell'evento con Bordi o Usa selezione. Una proposta ambigua non
+ancora applicata non blocca le altre; se era gia' applicata, correggila
+prima di aggiornare quella take. L'esportazione delle etichette rilegge anch'essa i
+confini; segnala ed esclude dal file gli esempi ambigui, conservandoli nel progetto.
+
 ## Correzioni e profilo personale
+
+Nella RC3 locale, **Segnala** raccoglie i comandi per respiro/click non
+rilevato, falso positivo e riparazione insoddisfacente. Per un mancato,
+traccia prima una selezione temporale; per gli altri giudizi seleziona
+l'evento. Il giudizio sulla riparazione resta distinto dalla conferma del
+click: non cambia l'audio e non addestra automaticamente il programma.
+
+Per i click, nella RC3 locale, **RIPARATO** indica una ricostruzione eseguita;
+**INTATTO: SICUREZZA** indica che il motore ha conservato l'originale;
+**DA RIVEDERE** indica una proposta ancora da valutare. **DA APPLICARE** non
+e' un trattamento gia' eseguito. Anche i marker brevi riportano l'esito.
+Puoi scegliere Auto, Lineare o Burg sul singolo evento: le protezioni della
+voce restano attive in tutti e tre. Nessuna e' invece una scelta esplicita
+di non riparare. Ascolta comunque il risultato: una ricostruzione eseguita
+non garantisce da sola che il difetto sia stato risolto bene.
 
 L'apprendimento è facoltativo e separato dalle scelte di montaggio:
 

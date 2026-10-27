@@ -108,6 +108,11 @@ standalone e in **Informazioni** nel pannello REAPER.
 
 ## Per chi sviluppa
 
+I sorgenti su `main` includono il lavoro sperimentale RC3: analisi separata di
+respiri e click, revisione e riparazione protetta, anteprima contestuale e
+strumenti di collaudo. Queste novità sono ancora in valutazione e non aggiornano
+i pacchetti RC2 scaricabili qui sopra.
+
 [Documentazione sviluppatori](docs/DEVELOPING.md): compilazione, architettura,
 SDK/CLI, test e distribuzione. Standalone, REAPER e la futura NL Audio Suite
 condividono il motore; la suite completa non fa parte di questa release.

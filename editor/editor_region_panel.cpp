@@ -138,7 +138,6 @@ LRESULT CALLBACK boundsDialogProc(HWND window, UINT message, WPARAM wParam, LPAR
             DestroyWindow(window);
             return 0;
         case WM_DESTROY:
-            PostQuitMessage(0);
             return 0;
         default:
             return DefWindowProcW(window, message, wParam, lParam);
@@ -152,6 +151,10 @@ LRESULT CALLBACK regionPanelSubclass(HWND window, UINT message, WPARAM wParam,
     // principale, che e' l'unica che conosce i comandi dell'editor.
     if (message == WM_COMMAND || message == WM_HSCROLL) {
         SendMessageW(GetParent(window), message, wParam, lParam);
+        return 0;
+    }
+    if (message == WM_VSCROLL || message == WM_MOUSEWHEEL) {
+        SendMessageW(GetParent(window), message, wParam, reinterpret_cast<LPARAM>(window));
         return 0;
     }
     return DefSubclassProc(window, message, wParam, lParam);
@@ -181,8 +184,8 @@ bool showBoundsDialog(HWND parent, double start, double end,
     if (!window) return false;
     wchar_t startText[64] = {};
     wchar_t endText[64] = {};
-    swprintf(startText, 64, L"%.3f", start);
-    swprintf(endText, 64, L"%.3f", end);
+    swprintf(startText, 64, L"%.6f", start);
+    swprintf(endText, 64, L"%.6f", end);
     SetWindowTextW(state.startEdit, startText);
     SetWindowTextW(state.endEdit, endText);
     if (parent) EnableWindow(parent, FALSE);
@@ -190,7 +193,12 @@ bool showBoundsDialog(HWND parent, double start, double end,
     UpdateWindow(window);
 
     MSG message = {};
-    while (IsWindow(window) && GetMessageW(&message, nullptr, 0, 0) > 0) {
+    while (IsWindow(window)) {
+        const BOOL available=GetMessageW(&message,nullptr,0,0);
+        if(available<=0){
+            if(available==0)PostQuitMessage(static_cast<int>(message.wParam));
+            break;
+        }
         if (!IsDialogMessageW(window, &message)) {
             TranslateMessage(&message);
             DispatchMessageW(&message);
@@ -207,87 +215,108 @@ bool showBoundsDialog(HWND parent, double start, double end,
 } // namespace
 
 void EditorWindow::createRegionPanel() {
+    WNDCLASSW panelClass{};
+    panelClass.lpfnWndProc = DefWindowProcW;
+    panelClass.hInstance = instance_;
+    panelClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    panelClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
+    panelClass.lpszClassName = L"BreathClickRegionPanel";
+    RegisterClassW(&panelClass);
     regionPanel_ = CreateWindowExW(
-        WS_EX_CLIENTEDGE, L"STATIC", L"",
-        WS_CHILD | WS_VISIBLE | SS_LEFT | WS_BORDER,
+        WS_EX_CLIENTEDGE | WS_EX_CONTROLPARENT, panelClass.lpszClassName, L"",
+        WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_CLIPCHILDREN,
         0, kToolbarHeight, kRegionPanelWidth, 100, window_,
         reinterpret_cast<HMENU>(static_cast<INT_PTR>(3201)),
         instance_, nullptr);
     if (!regionPanel_) return;
     SetWindowSubclass(regionPanel_, regionPanelSubclass, 1, 0);
+    regionPanelControls_.clear();
 
     auto makeStatic = [&](const wchar_t* text, int x, int y, int w, int h) {
-        if (y >= 70) y += 36;
         HWND control = CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
                                        x, y, w, h, regionPanel_, nullptr, instance_, nullptr);
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont_), TRUE);
+        regionPanelControls_.push_back({control, x, y, w, h});
         return control;
     };
     auto makeButton = [&](int id, const wchar_t* text, int x, int y, int w, int h) {
-        if (y >= 70) y += 36;
         HWND control = CreateWindowExW(0, L"BUTTON", text,
                                        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
                                        x, y, w, h, regionPanel_,
                                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)),
                                        instance_, nullptr);
         SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont_), TRUE);
+        regionPanelControls_.push_back({control, x, y, w, h});
         return control;
     };
 
     regionTitle_ = makeStatic(L"Respiro selezionato", 8, 4, 280, 20);
     regionCounters_ = makeStatic(L"Rilevati 0 | Inclusi 0 | Esclusi 0 | Manuali 0",
                                  8, 24, 280, 50);
-    regionState_ = makeStatic(L"Nessun evento selezionato", 8, 58, 280, 18);
-    MoveWindow(regionState_, 8, 80, 280, 18, FALSE);
-    makeStatic(L"Inizio", 8, 70, 62, 18);
-    regionStartValue_ = makeStatic(L"-", 74, 70, 96, 18);
+    SetWindowLongPtrW(regionCounters_, GWLP_ID, 3111);
+    regionState_ = makeStatic(L"Nessun evento selezionato", 8, 80, 280, 36);
+    SetWindowLongPtrW(regionState_, GWLP_ID, 3108);
+    makeStatic(L"Inizio", 8, 120, 54, 18);
+    regionStartValue_ = makeStatic(L"-", 62, 120, 94, 18);
     SetWindowLongPtrW(regionStartValue_, GWLP_ID, 3105);
-    makeStatic(L"Fine", 176, 70, 44, 18);
-    regionEndValue_ = makeStatic(L"-", 222, 70, 70, 18);
+    makeStatic(L"Fine", 162, 120, 38, 18);
+    regionEndValue_ = makeStatic(L"-", 200, 120, 88, 18);
     SetWindowLongPtrW(regionEndValue_, GWLP_ID, 3106);
     regionApply_ = makeButton(EditorCommand::kRegionEditBounds, L"Modifica confini...",
-                              8, 94, 150, 26);
-    regionDuration_ = makeStatic(L"Durata: -", 166, 98, 126, 18);
-    regionMode_ = makeStatic(L"Intervento: -", 8, 128, 284, 18);
-    regionFade_ = makeStatic(L"Fade: -", 8, 150, 284, 18);
-    regionApprove_ = makeButton(EditorCommand::kRegionConfirm, L"Includi", 8, 176, 135, 28);
-    regionReject_ = makeButton(EditorCommand::kRegionReject, L"Escludi", 151, 176, 135, 28);
-
-    makeStatic(L"Modalita' dell'evento", 8, 212, 284, 18);
-    regionModeButtons_[0] = makeButton(EditorCommand::kRegionModeAttenuate, L"Attenua", 8, 232, 88, 26);
-    regionModeButtons_[1] = makeButton(EditorCommand::kRegionModeCut, L"Taglia", 102, 232, 88, 26);
-    regionModeButtons_[2] = makeButton(EditorCommand::kRegionModeHalve, L"Dimezza", 196, 232, 88, 26);
-
-    makeStatic(L"Ampiezza (solo vista)", 8, 266, 284, 18);
+                              8, 144, 150, 26);
+    regionDuration_ = makeStatic(L"Durata: -", 166, 148, 126, 18);
+    regionMode_ = makeStatic(L"Intervento: -", 8, 178, 284, 18);
+    regionFade_ = makeStatic(L"Fade: -", 8, 200, 284, 18);
+    regionApprove_ = makeButton(EditorCommand::kRegionConfirm, L"Includi (A)", 8, 226, 135, 28);
+    regionReject_ = makeButton(EditorCommand::kRegionReject, L"Escludi (R)", 151, 226, 135, 28);
+    makeButton(EditorCommand::kRegionAudition, L"Originale", 8, 262, 88, 26);
+    makeButton(EditorCommand::kAuditionProcessed, L"Elaborato", 102, 262, 88, 26);
+    makeButton(EditorCommand::kAuditionRemoved, L"Solo rimosso", 196, 262, 88, 26);
+    makeButton(EditorCommand::kRegionPrevious, L"< Precedente (P)", 8, 294, 135, 26);
+    makeButton(EditorCommand::kRegionNext, L"Successivo (N) >", 151, 294, 135, 26);
+    regionModeButtons_[0] = makeButton(EditorCommand::kRegionModeAttenuate, L"Attenua", 8, 326, 88, 26);
+    regionModeButtons_[1] = makeButton(EditorCommand::kRegionModeCut, L"Taglia", 102, 326, 88, 26);
+    regionModeButtons_[2] = makeButton(EditorCommand::kRegionModeHalve, L"Dimezza", 196, 326, 88, 26);
+    const int repairCommands[] = {EditorCommand::kClickRepairAuto, EditorCommand::kClickRepairLinear,
+                                  EditorCommand::kClickRepairPredictive, EditorCommand::kClickRepairNone};
+    const wchar_t* repairNames[] = {L"Auto", L"Lineare", L"Burg", L"Intatto"};
+    for (int i = 0; i < 4; ++i) {
+        regionRepairButtons_[i] = makeButton(repairCommands[i], repairNames[i], 8 + 71 * i, 326, 65, 26);
+        ShowWindow(regionRepairButtons_[i], SW_HIDE);
+    }
+    makeButton(EditorCommand::kReviewReport, L"Segnala / apprendimento...", 8, 358, 278, 28);
+    regionFilter_ = CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        8, 398, 278, 250, regionPanel_, reinterpret_cast<HMENU>(EditorCommand::kRegionFilter), instance_, nullptr);
+    regionPanelControls_.push_back({regionFilter_, 8, 398, 278, 250});
+    for (const wchar_t* text : {L"Tutti gli eventi", L"Respiri", L"Click", L"Manuali", L"Automatici", L"Esclusi / non inclusi", L"Incerti / possibile parlato", L"Click digitali", L"Saliva / labbra", L"Falsi positivi verificati", L"Da decidere", L"Click: impulsi e schiocchi", L"Riparazioni insoddisfacenti"})
+        SendMessageW(regionFilter_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text));
+    SendMessageW(regionFilter_, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont_), TRUE);
+    SendMessageW(regionFilter_, CB_SETCURSEL, 0, 0);
+    toolRegions_ = makeButton(EditorCommand::kToolRegions, L"REGIONI", 8, 434, 135, 26);
+    toolTime_ = makeButton(EditorCommand::kToolTimeSelection, L"SELEZIONE TEMPO", 151, 434, 135, 26);
+    makeButton(EditorCommand::kRegionsInTimeSelection, L"Eventi nell'intervallo", 8, 466, 135, 26);
+    makeButton(EditorCommand::kClicksDisable, L"Escludi tutti i click", 151, 466, 135, 26);
+    makeButton(EditorCommand::kManualAttenuate, L"Attenua selezione...", 8, 498, 135, 26);
+    makeButton(EditorCommand::kManualSilence, L"Silenzia selezione", 151, 498, 135, 26);
+    makeButton(EditorCommand::kManualCut, L"Taglia selezione", 8, 530, 135, 26);
+    makeButton(EditorCommand::kManualHalve, L"Dimezza durata", 151, 530, 135, 26);
+    makeButton(EditorCommand::kManualRestore, L"Ripristina intervallo", 8, 562, 135, 26);
+    makeButton(EditorCommand::kTimeSelectionBounds, L"Confini selezione...", 151, 562, 135, 26);
+    makeStatic(L"Ampiezza (solo vista)", 8, 604, 284, 18);
     verticalZoomSlider_ = CreateWindowExW(0, TRACKBAR_CLASSW, L"",
                                           WS_CHILD | WS_VISIBLE | TBS_HORZ | TBS_NOTICKS,
-                                          8, 322, 220, 22, regionPanel_,
+                                          8, 628, 220, 22, regionPanel_,
                                           reinterpret_cast<HMENU>(static_cast<INT_PTR>(3104)),
                                           instance_, nullptr);
     SendMessageW(verticalZoomSlider_, TBM_SETRANGE, TRUE, MAKELPARAM(0, 3));
     SendMessageW(verticalZoomSlider_, TBM_SETPOS, TRUE, 0);
-    verticalZoomValue_ = makeStatic(L"1x", 234, 288, 48, 18);
+    regionPanelControls_.push_back({verticalZoomSlider_, 8, 628, 220, 22});
+    verticalZoomValue_ = makeStatic(L"1x", 234, 628, 48, 18);
     SetWindowLongPtrW(verticalZoomValue_, GWLP_ID, 3107);
-    makeButton(EditorCommand::kViewZoomOut, L"Zoom -", 8, 316, 86, 26);
-    makeButton(EditorCommand::kViewZoomFit, L"Adatta", 102, 316, 86, 26);
-    makeButton(EditorCommand::kViewZoomIn, L"Zoom +", 196, 316, 86, 26);
-    toolRegions_ = makeButton(EditorCommand::kToolRegions, L"REGIONI", 8, 348, 135, 26);
-    toolTime_ = makeButton(EditorCommand::kToolTimeSelection, L"SELEZIONE TEMPO", 151, 348, 135, 26);
-    regionFilter_ = CreateWindowExW(0, L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-        8, 416, 278, 220, regionPanel_, reinterpret_cast<HMENU>(EditorCommand::kRegionFilter), instance_, nullptr);
-    for (const wchar_t* text : {L"Tutti gli eventi", L"Respiri", L"Click", L"Manuali", L"Automatici", L"Esclusi", L"Incerti / possibile parlato"})
-        SendMessageW(regionFilter_, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(text));
-    SendMessageW(regionFilter_, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont_), TRUE);
-    SendMessageW(regionFilter_, CB_SETCURSEL, 0, 0);
-    makeButton(EditorCommand::kRegionsInTimeSelection, L"Eventi nell'intervallo", 8, 412, 135, 26);
-    makeButton(EditorCommand::kClicksDisable, L"Escludi tutti i click", 151, 412, 135, 26);
-    makeButton(EditorCommand::kManualAttenuate, L"Attenua selezione...", 8, 444, 135, 26);
-    makeButton(EditorCommand::kManualSilence, L"Silenzia selezione", 151, 444, 135, 26);
-    makeButton(EditorCommand::kManualCut, L"Taglia selezione", 8, 476, 135, 26);
-    makeButton(EditorCommand::kManualHalve, L"Dimezza durata", 151, 476, 135, 26);
-    makeButton(EditorCommand::kManualRestore, L"Ripristina intervallo", 8, 508, 135, 26);
-    makeButton(EditorCommand::kTimeSelectionBounds, L"Confini selezione...", 151, 508, 135, 26);
-    learningSummary_ = makeStatic(L"", 8, 540, 278, 58);
+    makeButton(EditorCommand::kViewZoomOut, L"Zoom -", 8, 658, 86, 26);
+    makeButton(EditorCommand::kViewZoomFit, L"Adatta", 102, 658, 86, 26);
+    makeButton(EditorCommand::kViewZoomIn, L"Zoom +", 196, 658, 86, 26);
+    learningSummary_ = makeStatic(L"", 8, 700, 278, 76);
     SetWindowLongPtrW(learningSummary_, GWLP_ID, 3110);
 
     legend_ = CreateWindowExW(0, L"STATIC", L"",
@@ -305,10 +334,39 @@ void EditorWindow::layoutRegionPanel() {
     const int height = std::max(80, static_cast<int>(client.bottom) - kToolbarHeight -
                                      kStatusHeight - kLegendHeight);
     MoveWindow(regionPanel_, client.right - width, kToolbarHeight, width, height, TRUE);
+    scrollRegionPanel(SB_THUMBPOSITION, regionPanelScroll_);
     if (legend_) {
         MoveWindow(legend_, 8, client.bottom - kStatusHeight - kLegendHeight,
                    std::max(100, static_cast<int>(client.right) - 16), kLegendHeight, TRUE);
     }
+}
+
+void EditorWindow::scrollRegionPanel(int code, int position) {
+    if (!regionPanel_) return;
+    RECT rect{}; GetClientRect(regionPanel_, &rect);
+    const int page = std::max(1L, rect.bottom);
+    const int maximum = std::max(0, 788 - page);
+    int next = regionPanelScroll_;
+    switch (code) {
+        case SB_LINEUP: next -= 30; break;
+        case SB_LINEDOWN: next += 30; break;
+        case SB_PAGEUP: next -= page; break;
+        case SB_PAGEDOWN: next += page; break;
+        case SB_TOP: next = 0; break;
+        case SB_BOTTOM: next = maximum; break;
+        case SB_THUMBTRACK: case SB_THUMBPOSITION: next = position; break;
+        default: break;
+    }
+    regionPanelScroll_ = std::clamp(next, 0, maximum);
+    SCROLLINFO scroll{sizeof(SCROLLINFO), SIF_RANGE | SIF_PAGE | SIF_POS};
+    scroll.nMin = 0; scroll.nMax = 787; scroll.nPage = page; scroll.nPos = regionPanelScroll_;
+    SetScrollInfo(regionPanel_, SB_VERT, &scroll, TRUE);
+    GetClientRect(regionPanel_, &rect);
+    const double scale = std::max(1L, rect.right) / 296.;
+    for (const auto& c : regionPanelControls_)
+        MoveWindow(c.window, static_cast<int>(c.x * scale), c.y - regionPanelScroll_,
+                   std::max(1, static_cast<int>(c.width * scale)), c.height, TRUE);
+    InvalidateRect(regionPanel_, nullptr, TRUE);
 }
 
 void EditorWindow::updateLegend() {
@@ -323,13 +381,14 @@ void EditorWindow::refreshRegionPanel(bool force) {
     if (!regionPanel_ || regionPanelUpdating_) return;
     regionPanelUpdating_ = true;
 
-    int included = 0;
+    int included = 0, review = 0;
     int excluded = 0;
     int manual = 0;
     int clicks = 0, detected = 0;
     if (document_.isLoaded()) {
         for (const EditRegion& region : document_.regions()) {
             if (region.enabled && region.approved) ++included;
+            else if (region.enabled && region.decisionSource != "user") ++review;
             else ++excluded;
             if (!region.fromDetection) ++manual;
             else ++detected;
@@ -338,11 +397,12 @@ void EditorWindow::refreshRegionPanel(bool force) {
     }
 
     wchar_t counters[180] = {};
-    swprintf(counters, 180, L"Rilevati %d | Inclusi %d | Esclusi %d\nManuali %d | Click %d\n",
-             detected, included, excluded, manual, clicks);
+    swprintf(counters, 180, L"Rilevati %d | Inclusi %d | Da decidere %d\nEsclusi %d | Manuali %d | Click %d\n",
+             detected, included, review, excluded, manual, clicks);
     std::wstring countText = counters;
-    countText += engineApplied_ < 0 ? L"Motore: anteprima da aggiornare" :
-        L"Applicati " + std::to_wstring(engineApplied_) + L" | Rifiutati " + std::to_wstring(engineRejected_);
+    countText += engineApplied_ < 0 ? L"Anteprima da aggiornare" :
+        L"Applicati " + std::to_wstring(engineApplied_) + L" | Sicurezza " +
+        std::to_wstring(engineDeclined_) + L" | Non validi " + std::to_wstring(engineRejected_);
     SetWindowTextW(regionCounters_, countText.c_str());
     SendMessageW(toolRegions_, BM_SETSTATE, !view_.timeSelectionTool(), 0);
     SendMessageW(toolTime_, BM_SETSTATE, view_.timeSelectionTool(), 0);
@@ -350,6 +410,12 @@ void EditorWindow::refreshRegionPanel(bool force) {
 
     const int index = document_.isLoaded() ? view_.selectedRegion() : -1;
     const bool valid = index >= 0 && index < static_cast<int>(document_.regions().size());
+    const bool clickSelected = valid && document_.regions()[index].kind == DetectionKind::Click;
+    for (HWND button : regionModeButtons_) ShowWindow(button, clickSelected ? SW_HIDE : SW_SHOW);
+    for (HWND button : regionRepairButtons_) {
+        ShowWindow(button, clickSelected ? SW_SHOW : SW_HIDE);
+        EnableWindow(button, clickSelected);
+    }
     if (!valid) {
         SetWindowTextW(regionTitle_, L"Nessun evento selezionato");
         SetWindowTextW(regionState_, L"Clicca una regione sulla forma d'onda");
@@ -368,13 +434,34 @@ void EditorWindow::refreshRegionPanel(bool force) {
 
     const EditRegion& region = document_.regions()[static_cast<size_t>(index)];
     const bool isIncluded = region.enabled && region.approved;
-    const bool isRejected = !isIncluded && region.decisionSource == "user";
     SetWindowTextW(regionTitle_, region.manualOperation ? L"Intervento manuale selezionato" : region.kind == DetectionKind::Breath
                                      ? L"Respiro selezionato"
                                      : L"Click selezionato");
-    SetWindowTextW(regionState_, region.learningLabel == "false_positive" ? L"Falso positivo verificato (negativo)" : isIncluded
-        ? (region.trainingEligible ? L"Incluso - confermato training" : L"Incluso")
-        : (isRejected ? L"Escluso (resta nel progetto)" : L"Escluso / non incluso"));
+    if(region.kind==DetectionKind::Click)
+        SetWindowTextW(regionTitle_,region.classification=="digital_click"?L"Click digitale":
+            region.classification=="saliva_click"?L"Click di saliva breve":
+            region.classification=="mouth_click"?L"Schiocco saliva/labbra":
+            region.classification=="speech_overlap"?L"Click sovrapposto alla voce - rivedere":
+            region.classification=="low_level_impulse"?L"Impulso debole - da verificare":L"Click selezionato");
+    if(region.kind==DetectionKind::Click && region.classification=="band_limited_click")
+        SetWindowTextW(regionTitle_,region.approved?L"Schiocco morbido selezionato":L"Schiocco morbido - da verificare");
+    if(region.kind==DetectionKind::Click && region.classification=="isolated_click_review")
+        SetWindowTextW(regionTitle_,region.approved?L"Impulso isolato selezionato":L"Impulso isolato - da verificare");
+    if(region.classification=="ai_short_review") SetWindowTextW(regionTitle_,region.approved?L"Respiro breve selezionato":L"Respiro breve - da verificare");
+    if(region.classification=="dsp_fragment_review") SetWindowTextW(regionTitle_,region.approved?L"Respiro frammentato selezionato":L"Respiro frammentato - da verificare");
+    const std::string outcome = studio::eventOutcome(studio::eventFromRegion(region),
+                                                    hasPreview_ ? &preview_ : nullptr);
+    const wchar_t* state = outcome == "repaired" ? L"Click riparato"
+        : outcome == "preserved_safety" ? L"Click intatto: protezione della voce"
+        : outcome == "bypassed" ? L"Intatto: nessuna riparazione scelta"
+        : outcome == "review" ? L"Rilevato: da rivedere"
+        : outcome == "pending" ? L"Incluso: esito da verificare in anteprima"
+        : outcome == "applied" ? L"Intervento applicato"
+        : outcome == "not_applied" ? L"Intervento non applicato"
+        : L"Escluso (resta nel progetto)";
+    if (!isIncluded && (region.learningLabel == "false_positive" || region.learningLabel == "click_false_positive" || region.learningLabel == "vocal_transient"))
+        state = L"Falso positivo verificato (negativo)";
+    SetWindowTextW(regionState_, state);
 
     const double sampleRate = std::max(1, document_.sampleRate());
     SetWindowTextW(regionStartValue_,
@@ -396,13 +483,29 @@ void EditorWindow::refreshRegionPanel(bool force) {
         swprintf(mode, 160, L"Intervento: %s", modeName(region.editMode));
     }
     SetWindowTextW(regionMode_, mode);
+    if (region.kind == DetectionKind::Click && region.repair) {
+        const wchar_t* method = region.repairMethod == "linear" ? L"Lineare" :
+            region.repairMethod == "predictive" ? L"Burg" : region.repairMethod == "none" ? L"Intatto" : L"Auto";
+        SetWindowTextW(regionMode_, (std::wstring(L"Riparazione click: ") + method).c_str());
+        const char* methods[] = {"auto", "linear", "predictive", "none"};
+        for (int i = 0; i < 4; ++i) SendMessageW(regionRepairButtons_[i], BM_SETSTATE, region.repairMethod == methods[i], 0);
+    }
     wchar_t fade[96] = {};
     swprintf(fade, 96, L"Fade: %.1f ms   |   Margine: %.1f ms",
              region.fadeMs, region.safetyMarginMs);
     SetWindowTextW(regionFade_, fade);
+    if (hasPreview_ && (region.editMode==1 || region.editMode==2)) {
+        for (const auto& op:preview_.operations) if (op.event.kind==region.kind &&
+            op.event.startSample==region.startSample && op.event.endSample==region.endSample &&
+            op.event.mode==static_cast<studio::EditMode>(region.editMode)) {
+            swprintf(fade,96,L"Raccordo: %.1f ms (entro la regione)",1000.*op.fadeFrames/sampleRate);
+            SetWindowTextW(regionFade_,fade);break;
+        }
+    }
     if (region.fromDetection && !region.trainingEligible && region.classification == "dsp")
         SetWindowTextW(regionFade_, L"DSP solo: verificare possibile parlato");
     if (region.editMode == 3) SetWindowTextW(regionMode_, L"Intervento: Silenzio (durata invariata)");
+    if (!region.repairFeedback.empty()) SetWindowTextW(regionFade_, L"Giudizio: riparazione insoddisfacente");
 
     EnableWindow(regionApply_, TRUE);
     EnableWindow(regionApprove_, !isIncluded || view_.selectedRegions().size() > 1);
@@ -421,12 +524,16 @@ void EditorWindow::commandTimeBounds() {
 
 void EditorWindow::updateLearningSummary() {
     if (!learningSummary_) return;
-    int positive = 0, negative = 0, editorial = 0, unverified = 0, files = 0;
+    int positive = 0, negative = 0, editorial = 0, unverified = 0, files = 0, clickPositive=0, clickNegative=0;
     for (int i = 0; i < static_cast<int>(tracks_.size()); ++i) {
         const AudioDocument* doc = trackDocument(i);
         if (!doc || !doc->isLoaded()) continue;
         bool verified = false;
         for (const auto& r : doc->regions()) {
+            if(r.kind==DetectionKind::Click && r.trainingEligible && r.decisionSource=="user"){
+                if(r.learningLabel=="click_confirmed" || r.learningLabel=="missed_click" || r.learningLabel=="mouth_click_confirmed")++clickPositive;
+                if(r.learningLabel=="click_false_positive" || r.learningLabel=="vocal_transient")++clickNegative;
+            }
             if (r.kind != DetectionKind::Breath || r.manualOperation) continue;
             const bool human = r.trainingEligible && r.decisionSource == "user";
             if (human && (r.learningLabel == "breath_confirmed" || r.learningLabel == "missed_breath")) { ++positive; verified = true; }
@@ -438,8 +545,8 @@ void EditorWindow::updateLearningSummary() {
     }
     wchar_t text[256] = {};
     swprintf(text, 256, L"Training: +%d / -%d | Editoriali %d | Non verificati %d\n"
-        L"File con label: %d. %s", positive, negative, editorial, unverified, files,
-        (files < 2 || positive < 6 || negative < 6) ? L"Esempi insufficienti" : L"Da validare su file indipendenti");
+        L"File respiri: %d. %s\nClick (label separate): +%d / -%d", positive, negative, editorial, unverified, files,
+        (files < 2 || positive < 6 || negative < 6) ? L"Esempi insufficienti" : L"Da validare su file indipendenti",clickPositive,clickNegative);
     SetWindowTextW(learningSummary_, text);
 }
 
@@ -549,6 +656,9 @@ void EditorWindow::createTooltips() {
     add(exportButton_, L"Esporta WAV, report e piano");
     add(analyzeButton_, L"Analizza il file corrente");
     add(settingsButton_, L"Impostazioni di rilevamento");
+    add(detectBreathQuick_,L"Attiva o disattiva i respiri. Premi Analizza per aggiornare le proposte; le correzioni manuali restano.");
+    add(detectClicksQuick_,L"Attiva o disattiva click e schiocchi, indipendentemente dai respiri.");
+    add(detectorQuick_,L"Metodo per i respiri: analisi combinata AI/DSP, modello vocale AI oppure DSP. I click usano sempre il motore dedicato.");
     add(playButton_, L"Riproduci dall'inizio o dalla selezione");
     add(stopButton_, L"Ferma la riproduzione");
     add(regionApprove_, L"Includi l'evento nel piano");

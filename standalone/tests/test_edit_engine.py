@@ -231,7 +231,10 @@ def main():
         # Crossfade con sovrapposizione: 3 giunzioni da 5 ms a 48 kHz.
         # La durata cala di 3*240 campioni oltre al taglio; il report lo dice.
         outdir = os.path.join(temp, "overlap_crossfade")
-        make_plan(source, sr, frames, events, crossfade_ms=5.0)
+        # Explicitly approve the crossfade handles as part of each region.
+        handle=int(round(.005*sr))
+        crossfade_events=[dict(e,start=e['start']-handle,end=e['end']+handle,safety_margin_ms=5.0) for e in events]
+        make_plan(source, sr, frames, crossfade_events, crossfade_ms=5.0)
         run(CLI, "edit", source, "--out-dir", outdir, "--plan",
             os.path.join(temp, "plan.json"))
         report = report_for(outdir)

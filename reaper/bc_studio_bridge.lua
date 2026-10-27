@@ -5,7 +5,7 @@ local here=debug.getinfo(1,'S').source:sub(2):match('^(.*)[/\\]')
 local J=dofile(here..'/bc_json.lua')
 local B=dofile(here..'/bcnext_core.lua')
 local R=dofile(here..'/bc_runtime.lua')
-local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15},busy=false}
+local X={J=J,B=B,runtime=R,status='Seleziona una take audio.',settings={detector='fusion',reduction_db=-12,fade_ms=15,detect_breath=true,detect_clicks=false,click_sensitivity=.5},busy=false}
 local WINDOWS=package.config:sub(1,1)=='\\'
 local EXE='bc_studio_cli'..(WINDOWS and '.exe' or '')
 local KEY='P_EXT:BreathClickStudio'
@@ -58,7 +58,7 @@ function X.load_settings()
     local ok,data=pcall(J.decode,saved)
     if ok and type(data)=='table' and (data.detector=='fusion' or data.detector=='dsp')
         and type(data.reduction_db)=='number' and data.reduction_db>=-120 and data.reduction_db<=0
-        and type(data.fade_ms)=='number' and data.fade_ms>=0 and data.fade_ms<=500 then X.settings=data end
+        and type(data.fade_ms)=='number' and data.fade_ms>=0 and data.fade_ms<=500 then data.detect_breath=data.detect_breath~=false; data.detect_clicks=data.detect_clicks==true; data.click_sensitivity=tonumber(data.click_sensitivity) or .5; X.settings=data end
 end
 function X.save_settings() reaper.SetExtState('BreathClickStudio','settings',J.encode(X.settings),true) end
 function X.context(item)
@@ -264,11 +264,15 @@ local function launch(entry)
     check(started~=nil,'Avvio worker fallito')
     entry.started=reaper.time_precise()
 end
+local function automatic_approval(event)
+    return event.enabled~=false and event.classification~='ai_short_review' and event.classification~='dsp_fragment_review' and (event.kind~=1 or
+        (event.classification=='digital_click' or event.classification=='saliva_click'))
+end
 local function merge_review(plan,old,offset,frames)
     local edited,outside=J.array(),J.array()
     local seen={}; local origin=math.floor(offset*plan.sample_rate+0.5)
     local function retain(source)
-        if not source.bcs_edited or seen[source.bcs_id] then return end
+        if (not source.bcs_edited and source.repair_feedback~='unsatisfactory') or seen[source.bcs_id] then return end
         seen[source.bcs_id]=true
         local e=J.decode(J.encode(source))
         e.bcs_source_start=e.bcs_source_start or math.floor(old.offset*old.plan.sample_rate+0.5)+e.start
@@ -284,10 +288,10 @@ local function merge_review(plan,old,offset,frames)
     local fresh=J.array()
     for _,e in ipairs(plan.events) do
         local overlaps=false
-        for _,kept in ipairs(edited) do if e.start<kept['end'] and e['end']>kept.start then overlaps=true; break end end
-        for _,kept in ipairs(outside) do if e.start<kept['end'] and e['end']>kept.start then overlaps=true; break end end
+        for _,kept in ipairs(edited) do if e.kind==kept.kind and e.start<kept['end'] and e['end']>kept.start then overlaps=true; break end end
+        for _,kept in ipairs(outside) do if e.kind==kept.kind and e.start<kept['end'] and e['end']>kept.start then overlaps=true; break end end
         if not overlaps then
-            e.bcs_id=guid(); e.approved=true; e.decision_source='automatic'; e.training_eligible=false
+            e.bcs_id=guid(); e.approved=automatic_approval(e); e.decision_source='automatic'; e.training_eligible=false
             fresh[#fresh+1]=e
         end
     end
@@ -448,7 +452,8 @@ function X.tick()
             if X.on_complete then X.on_complete(X.entries)
             elseif X.mode=='analyze' then commit_analysis(X.entries) else commit_render(X.entries) end
             X.busy=false
-            if X.mode~='learning' then X.status=X.mode=='analyze' and 'Analisi pronta. Correggi i bordi con mouse o selezione temporale.' or
+            if X.completion_status then X.status=X.completion_status;X.completion_status=nil
+            elseif X.mode~='learning' then X.status=X.mode=='analyze' and 'Analisi pronta. Correggi i bordi con mouse o selezione temporale.' or
                 'Intervento applicato sulla stessa take. Originale/Elaborato per A/B; Ctrl+Z annulla.' end
         end
     end,debug.traceback)
@@ -478,5 +483,5 @@ end
 -- Direct editing extends the existing jobs, rollback, preflight and transport.
 dofile(here..'/bc_direct.lua')(X,{get=get,put=put,check=check,guid=guid,take_guid=take_guid,
     snapshot=snapshot,transaction=transaction,new_job=new_job,launch=launch,relative=relative,
-    merge_review=merge_review,project=current_project,KEY=KEY,LINK=LINK})
+    merge_review=merge_review,automatic_approval=automatic_approval,project=current_project,KEY=KEY,LINK=LINK})
 return X

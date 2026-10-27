@@ -79,7 +79,9 @@ int main() {
     bc::EditRegion region;
     region.startSample = 12; region.endSample = 456;
     region.learningLabel = "breath_confirmed"; region.trainingEligible = true; region.decisionSource = "user";
+    region.repairFeedback="unsatisfactory";region.repairFeedbackMethod="attenuate";
     session.regions.push_back(region);
+    session.events.push_back(bc::studio::eventFromRegion(region));
     session.detectorSettings = bc::DetectorSettings{};
     session.detectorSettings->minBreathMs = 247;
     session.detectorSettings->requirePauseForBreath = false;
@@ -94,6 +96,9 @@ int main() {
         !loaded.detectorSettings || loaded.detectorSettings->minBreathMs != 247 ||
         loaded.detectorSettings->requirePauseForBreath || loaded.sourcePath != audio.u8string())
         return fail("session labels roundtrip");
+    if(loaded.regions[0].repairFeedback!="unsatisfactory" || loaded.regions[0].repairFeedbackMethod!="attenuate" ||
+       loaded.events.size()!=1 || loaded.events[0].repairFeedback!="unsatisfactory" ||
+       loaded.events[0].repairFeedbackMethod!="attenuate") return fail("independent repair feedback lost");
     if (bc::studio::saveSession(audio.u8string(), session, &error) || read(audio) != "synthetic source bytes")
         return fail("session overwrote original");
     if (!loaded.fade.inEnabled || loaded.fade.inSeconds != .123 || !loaded.fade.outEnabled ||
@@ -203,13 +208,15 @@ int main() {
     event.startSample = 100; event.endSample = 2000; event.approved = true;
     event.fadeMs = 0; event.reductionDb = -6.0f;
     event.reason = u8"voce è valida";
+    event.repairFeedback="unsatisfactory";event.repairFeedbackMethod="attenuate";
     plan.events.push_back(event);
     const auto planPath = (root / "edit.plan.json").u8string();
     if (!bc::studio::writeEditPlanJson(planPath, plan, &error) ||
         !bc::writeTextAtomic(planPath, escapedAccent(read(std::filesystem::u8path(planPath))), &error) ||
         !bc::studio::loadEditPlanJson(planPath, &plan, &error) ||
         plan.events.size() != 1 || plan.events[0].reductionDb != -6 ||
-        plan.events[0].reason != event.reason) return fail("per-region attenuation/escaped Unicode roundtrip");
+        plan.events[0].reason != event.reason || plan.events[0].repairFeedback!=event.repairFeedback ||
+        plan.events[0].repairFeedbackMethod!=event.repairFeedbackMethod) return fail("per-region attenuation/feedback/escaped Unicode roundtrip");
     bc::studio::EditResult edited;
     if (!bc::studio::applyEditPlan(buffer, plan, &edited, &error)) return fail("apply region gain");
     const auto expectedGain = float(std::pow(10., -6. / 20.));

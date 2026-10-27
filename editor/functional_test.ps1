@@ -12,6 +12,7 @@
 # ============================================================================
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'test_window.ps1')
 
 Add-Type @"
 using System;
@@ -74,13 +75,7 @@ Write-Host ""
 Write-Host "Avvio l'editor sul file..." -ForegroundColor Cyan
 $proc = Start-Process -WindowStyle Normal -FilePath $editor -ArgumentList "`"$wav`"" -PassThru
 $hwnd = [IntPtr]::Zero
-for ($i = 0; $i -lt 40; $i++) {
-    Start-Sleep -Milliseconds 250
-    $proc.Refresh()
-    if ($proc.HasExited) { throw "l'editor e' uscito subito (codice $($proc.ExitCode))" }
-    if ($proc.MainWindowHandle -ne [IntPtr]::Zero) { $hwnd = $proc.MainWindowHandle; break }
-}
-if ($hwnd -eq [IntPtr]::Zero) { throw "la finestra dell'editor non e' comparsa" }
+$hwnd = Wait-BcEditorWindow -Process $proc
 Start-Sleep -Milliseconds 600
 Check "l'editor si avvia e mostra la finestra" $true
 

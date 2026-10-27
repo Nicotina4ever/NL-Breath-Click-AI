@@ -59,24 +59,34 @@ try {
         } else {
             Run-Engine @('slice',$job.source,'--out',$segment,'--start',[string]$job.offset,'--duration',[string]$job.duration)
         }
-        Run-Engine @('plan',$segment,'--out',$plan,'--detector',[string]$job.detector,'--reduction-db',[string]$job.reduction_db,'--fade-ms',[string]$job.fade_ms)
+        $planArgs=@('plan',$segment,'--out',$plan,'--detector',[string]$job.detector,'--reduction-db',[string]$job.reduction_db,'--fade-ms',[string]$job.fade_ms)
+        if($null -ne $job.detect_breath) { $planArgs+=@('--breaths',$(if($job.detect_breath){'1'}else{'0'})) }
+        if($null -ne $job.detect_clicks) { $planArgs+=@('--clicks',$(if($job.detect_clicks){'1'}else{'0'})) }
+        if($null -ne $job.click_sensitivity) { $planArgs+=@('--click-sensitivity',[string]$job.click_sensitivity) }
+        Run-Engine -Arguments $planArgs
         if($job.profile) {
             $filtered=Join-Path $jobRoot 'personal.json'
-            Run-Engine @('profile-filter','--plan',$plan,'--profile',[string]$job.profile,'--out',$filtered)
+            Run-Engine @('profile-filter','--kind','breath','--plan',$plan,'--profile',[string]$job.profile,'--out',$filtered)
+            $plan=$filtered
+        }
+        if($job.click_profile) {
+            $filtered=Join-Path $jobRoot 'personal_click.json'
+            Run-Engine @('profile-filter','--kind','click','--plan',$plan,'--profile',[string]$job.click_profile,'--out',$filtered)
             $plan=$filtered
         }
         $meta=Get-Content -LiteralPath ($segment+'.source.json') -Raw -Encoding UTF8|ConvertFrom-Json
         Run-Engine @('verify-source',$job.source,'--sha256',$meta.source_sha256)
         $result=[ordered]@{status='complete';plan=$plan;prepared=$segment;source_sha256=$meta.source_sha256;frames=$meta.frames}
-    } elseif($job.mode -eq 'render') {
+    } elseif($job.mode -eq 'render' -or $job.mode -eq 'difference') {
         Run-Engine @('verify-source',$job.source,'--sha256',$job.source_sha256)
-        Run-Engine @('edit',$job.prepared,'--plan',$job.plan,'--out-dir',$jobRoot)
+        Run-Engine @($(if($job.mode -eq 'difference'){'difference'}else{'edit'}),$job.prepared,'--plan',$job.plan,'--out-dir',$jobRoot)
         Run-Engine @('verify-source',$job.source,'--sha256',$job.source_sha256)
-        $output=Join-Path $jobRoot (([IO.Path]::GetFileNameWithoutExtension($job.prepared))+'_edit.wav')
+        $output=Join-Path $jobRoot (([IO.Path]::GetFileNameWithoutExtension($job.prepared))+$(if($job.mode -eq 'difference'){'_difference.wav'}else{'_edit.wav'}))
         if(-not(Test-Path -LiteralPath ($output+'.edit.json'))) { throw 'Render report missing' }
         $result=[ordered]@{status='complete';output=$output;report=($output+'.edit.json')}
     } elseif($job.mode -eq 'profile-train' -or $job.mode -eq 'labels-export') {
         $arguments=@([string]$job.mode,'--out',[string]$job.output)
+        if($job.kind){$arguments+=@('--kind',[string]$job.kind)}
         foreach($planFile in $job.plans) {$arguments+=@('--plan',[string]$planFile)}
         Run-Engine -Arguments $arguments
         $result=[ordered]@{status='complete';output=$job.output}

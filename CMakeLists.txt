@@ -32,7 +32,7 @@ find_package(Threads REQUIRED)
 set(THIRD_PARTY_DIR "${CMAKE_SOURCE_DIR}/third_party" CACHE PATH "Dipendenze esterne verificate")
 set(BC_MODEL_DIR "${CMAKE_SOURCE_DIR}/models/generale" CACHE PATH "Modello Respiro-en verificato")
 set(BC_ONNX_RUNTIME_FILE "${THIRD_PARTY_DIR}/onnxruntime/onnxruntime.dll" CACHE FILEPATH "Optional pinned ONNX runtime DLL")
-set(BC_STUDIO_VERSION "${PROJECT_VERSION}-rc.2")
+set(BC_STUDIO_VERSION "${PROJECT_VERSION}-rc.3")
 set(BC_SOURCE_COMMIT "unknown" CACHE STRING "Public source commit used to build release binaries")
 configure_file(shared/version.h.in "${CMAKE_BINARY_DIR}/generated/version.h" @ONLY)
 include_directories("${CMAKE_BINARY_DIR}/generated")
@@ -168,7 +168,7 @@ if(TARGET bc_studio_engine AND NOT BC_PRIVATE_MODEL_DIR)
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
     install(DIRECTORY core/include/core DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick
         PATTERN "breath_model.h" EXCLUDE PATTERN "breath_model_net.h" EXCLUDE PATTERN "breath_model_net_narrow.h" EXCLUDE)
-    install(FILES standalone/studio_engine.h standalone/studio_project.h standalone/studio_session.h standalone/respiro_onnx.h
+    install(FILES standalone/studio_engine.h standalone/studio_project.h standalone/studio_session.h standalone/respiro_onnx.h standalone/analysis_control.h
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick)
     install(FILES "${THIRD_PARTY_DIR}/kissfft/kiss_fft.h" "${THIRD_PARTY_DIR}/kissfft/kiss_fftr.h"
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/nl_breathclick/third_party/kissfft)

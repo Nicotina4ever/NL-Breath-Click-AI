@@ -3,6 +3,7 @@
 #include "core/edit/audio_document.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -12,6 +13,10 @@
 namespace bc {
 
 namespace {
+uint64_t nextAudioRevision() {
+    static std::atomic<uint64_t> serial{0};
+    return ++serial;
+}
 
 float dbToGain(float db) {
     return std::pow(10.0f, db / 20.0f);
@@ -73,6 +78,7 @@ bool AudioDocument::adopt(AudioBuffer buffer, const std::string& displayName) {
     }
 
     buffer_ = std::move(buffer);
+    audioRevision_ = nextAudioRevision();
     displayName_ = displayName;
     sourcePath_.clear();
     sourceInfo_ = {};
@@ -139,6 +145,7 @@ AudioDocument::UndoRecord AudioDocument::captureState(const std::string& label) 
 }
 
 void AudioDocument::pushUndo(UndoRecord record) {
+    if (!record.steps.empty()) audioRevision_ = nextAudioRevision();
     if (undoGroupActive_) {
         for (auto& step : record.steps) undoGroupBase_.steps.push_back(std::move(step));
         if (!undoGroupChanged_) {
@@ -167,6 +174,7 @@ void AudioDocument::pushUndo(UndoRecord record) {
 }
 
 AudioDocument::InverseStep AudioDocument::applyInverseStep(const InverseStep& step) {
+    audioRevision_ = nextAudioRevision();
     InverseStep inverse;
     const int channels = std::max(1, buffer_.channels);
     const int64_t totalFrames = static_cast<int64_t>(buffer_.samples.size()) / channels;
@@ -778,6 +786,10 @@ void AudioDocument::setRegionsFromDetections(const std::vector<Detection>& detec
                                  : settings.clickReductionDb;
         region.repair = detection.kind == DetectionKind::Click && settings.repairClicks;
         region.enabled = true;
+        region.approved = !detectionReviewRequired(detection.kind,detection.classification);
+        region.classification = detection.classification;
+        region.reason = detection.reason;
+        region.decisionSource = "automatic";
         region.score = detection.peakScore;
         region.fromDetection = true;
         regions_.push_back(region);
@@ -853,7 +865,7 @@ AudioDocument::ReconcileResult AudioDocument::reconcileRegions(
                 else matches.push_back(i);
             }
         }
-        const bool preserve = !region.fromDetection ||
+        const bool preserve = !region.repairFeedback.empty() || !region.fromDetection ||
                               region.decisionSource == "user" ||
                               !region.approved || !region.enabled ||
                               region.applied || region.trainingEligible;
@@ -876,6 +888,7 @@ AudioDocument::ReconcileResult AudioDocument::reconcileRegions(
                 EditRegion updated = region;
                 updated.score = detections[matches.front()].peakScore;
                 updated.classification = detections[matches.front()].classification;
+                updated.approved = !detectionReviewRequired(updated.kind,updated.classification);
                 updated.reason = detections[matches.front()].reason;
                 updated.dspScore = detections[matches.front()].dspScore;
                 updated.aiScore = detections[matches.front()].aiScore;
@@ -906,7 +919,7 @@ AudioDocument::ReconcileResult AudioDocument::reconcileRegions(
                                  : settings.clickReductionDb;
         region.repair = detection.kind == DetectionKind::Click && settings.repairClicks;
         region.enabled = true;
-        region.approved = true;
+        region.approved = !detectionReviewRequired(detection.kind,detection.classification);
         region.score = detection.peakScore;
         region.fromDetection = true;
         region.decisionSource = "automatic";
@@ -981,6 +994,7 @@ std::vector<float> AudioDocument::gainCurve(const EditSettings& settings, GainCu
             operation.endSample = region.endSample;
             operation.reductionDb = region.reductionDb;
             operation.repair = region.repair;
+            operation.repairMethod = region.repairMethod;
             operations.push_back(operation);
         }
 
@@ -1136,12 +1150,16 @@ bool AudioDocument::exportCorrections(const std::string& path, std::string* erro
          << "\",\n  \"sample_rate\": " << buffer_.sampleRate << ",\n  \"correzioni\": [\n";
     bool first = true;
     for (const auto& region : regions_) {
-        const bool positive = region.learningLabel == "breath_confirmed" || region.learningLabel == "missed_breath";
-        if (!region.trainingEligible || region.decisionSource != "user" || region.kind != DetectionKind::Breath ||
-            (!positive && region.learningLabel != "false_positive")) continue;
+        const bool positive = region.kind == DetectionKind::Breath ?
+            (region.learningLabel == "breath_confirmed" || region.learningLabel == "missed_breath") :
+            (region.learningLabel == "click_confirmed" || region.learningLabel == "missed_click" || region.learningLabel == "mouth_click_confirmed");
+        const bool negative = region.kind == DetectionKind::Breath ? region.learningLabel == "false_positive" :
+            (region.learningLabel == "click_false_positive" || region.learningLabel == "vocal_transient");
+        if (!region.trainingEligible || region.decisionSource != "user" ||
+            (!positive && !negative)) continue;
         if (!first) file << ",\n";
         first = false;
-        file << "    {\"tipo\": \"respiro\", \"positivo\": " << (positive ? "true" : "false")
+        file << "    {\"tipo\": \"" << (region.kind == DetectionKind::Breath ? "respiro" : "click") << "\", \"positivo\": " << (positive ? "true" : "false")
              << ", \"training_eligible\": true, \"motivo\": \"training: " << region.learningLabel
              << "\", \"inizio_s\": " << std::setprecision(17)
              << double(region.startSample) / std::max(1, buffer_.sampleRate)

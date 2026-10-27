@@ -152,4 +152,32 @@ with tempfile.TemporaryDirectory(prefix='bc_reaper_bridge_') as temp:
     proposals_file=root/'proposals.json';proposals_file.write_text(json.dumps(proposals),encoding='utf-8')
     call('profile-filter','--plan',proposals_file,'--profile',profile,'--out',filtered)
     assert any(e.get('reason')=='personal_profile' and not e['enabled'] for e in json.loads(filtered.read_text(encoding='utf-8-sig'))['events'])
+    # Independent click profile, trained through the actual worker, reusable by
+    # both hosts. Test labels stay in this disposable synthetic test directory.
+    click_plans=[]
+    for number,src in enumerate((source,source2)):
+        spec=json.loads(labels1.read_text());spec.update(source=str(src),source_relative='',source_sha256=sha(src))
+        for i,e in enumerate(spec['events']):
+            e.update(kind=1,end=e['start']+96,learning_label='mouth_click_confirmed' if i%2==0 else 'vocal_transient')
+        path=root/f'click_truth_{number}.json';path.write_text(json.dumps(spec));click_plans.append(path)
+    click_profile=root/'personal_click_profile.ini';folder=root/'click_training';folder.mkdir()
+    job=run_job(folder,dict(mode='profile-train',kind='click',exe=str(exe),plans=list(map(str,click_plans)),output=str(click_profile)))
+    assert job['status']=='complete',job
+    assert 'schema=3' in click_profile.read_text() and 'category=click' in click_profile.read_text()
+    wrong=root/'wrong_category.json'
+    call('profile-filter','--kind','breath','--plan',proposals_file,'--profile',click_profile,'--out',wrong,ok=False)
+    assert not wrong.exists()
+    spec=json.loads(click_plans[0].read_text())
+    for e in spec['events']:e.update(decision_source='automatic',training_eligible=False,learning_label='',enabled=True,approved=True)
+    breath_event=dict(spec['events'][1],kind=0);spec['events'].append(breath_event)
+    # Editorial decisions and training labels are never changed by a filter.
+    user_event=dict(spec['events'][1],decision_source='user',training_eligible=False);spec['events'].append(user_event)
+    path=root/'click_proposals.json';path.write_text(json.dumps(spec));output=root/'click_filtered.json'
+    call('profile-filter','--kind','click','--plan',path,'--profile',click_profile,'--out',output)
+    actual=json.loads(output.read_text())['events']
+    assert any(e.get('reason')=='personal_profile' and not e['enabled'] for e in actual[:6])
+    assert actual[-2]['enabled'] and actual[-1]['enabled'],'click profile changed breath or editorial decision'
+    preserved=sha(click_profile)
+    call('profile-train','--kind','click','--plan',labels1,'--out',click_profile,ok=False)
+    assert sha(click_profile)==preserved,'failed click training overwrote the valid profile'
 print('REAPER BRIDGE OK: real native WAV/MP3/FLAC crop, four edit modes, worker argv, cancellation and source conflict')

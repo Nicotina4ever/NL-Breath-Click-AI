@@ -108,6 +108,11 @@ About) in the standalone, or **Informazioni** in the REAPER panel.
 
 ## For developers
 
+The source on `main` includes experimental RC3 work: independent breath and
+click analysis, protected repair and review, contextual audition and test
+tools. These changes are still being evaluated and do not update the RC2
+downloads above.
+
 [Developer documentation](docs/DEVELOPING.md): builds, architecture, SDK/CLI,
 tests and distribution. Standalone, REAPER and the future NL Audio Suite
 share the engine; the full suite is not part of this release.

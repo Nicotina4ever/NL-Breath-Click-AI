@@ -33,9 +33,9 @@ float sigmoid(float value) {
     return 1.0f / (1.0f + std::exp(-value));
 }
 
-std::vector<float> featureVector(const LearningFeatures& features) {
+std::vector<float> featureVector(const LearningFeatures& features, DetectionKind kind) {
     // Feature normalizzate: il profilo non dipende dalla scala del file.
-    const float duration = std::max(0.0f, std::min(2.0f, features.durationMs / 500.0f));
+    const float duration = std::max(0.0f, std::min(2.0f, features.durationMs / (kind == DetectionKind::Click ? 20.0f : 500.0f)));
     const float rms = clamp01((features.rmsDb + 80.0f) / 80.0f);
     const float zcr = std::max(0.0f, std::min(1.0f, features.zeroCrossRate));
     const float mean = std::max(0.0f, std::min(1.0f, features.meanAbs * 4.0f));
@@ -106,11 +106,20 @@ std::string sourceKey(const LearningExample& example) {
     return key;
 }
 
-bool verified(const LearningExample& example) {
+bool eligibleLabel(LearningLabel label, DetectionKind kind) {
+    return kind == DetectionKind::Click ?
+        (label == LearningLabel::ClickConfirmed || label == LearningLabel::MouthClickConfirmed ||
+         label == LearningLabel::MissedClick || label == LearningLabel::ClickFalsePositive || label == LearningLabel::VocalTransient) :
+        (label == LearningLabel::BreathConfirmed || label == LearningLabel::MissedBreath || label == LearningLabel::FalsePositive);
+}
+bool positiveLabel(LearningLabel label) {
+    return label == LearningLabel::BreathConfirmed || label == LearningLabel::MissedBreath ||
+        label == LearningLabel::ClickConfirmed || label == LearningLabel::MouthClickConfirmed || label == LearningLabel::MissedClick;
+}
+bool verified(const LearningExample& example, DetectionKind kind) {
     const auto& f = example.features;
     return !example.sourcePath.empty() &&
-        (example.label == LearningLabel::BreathConfirmed || example.label == LearningLabel::MissedBreath ||
-         example.label == LearningLabel::FalsePositive) && std::isfinite(f.modelScore) &&
+        eligibleLabel(example.label, kind) && std::isfinite(f.modelScore) &&
         std::isfinite(f.durationMs) && std::isfinite(f.rmsDb) &&
         std::isfinite(f.zeroCrossRate) && std::isfinite(f.meanAbs);
 }
@@ -121,12 +130,10 @@ struct Split {
     std::string validationSource;
 };
 
-bool splitExamples(const std::vector<LearningExample>& examples, Split& split) {
+bool splitExamples(const std::vector<LearningExample>& examples, Split& split, DetectionKind kind) {
     std::vector<std::string> sources;
     for (const LearningExample& example : examples) {
-        if (example.label != LearningLabel::BreathConfirmed &&
-            example.label != LearningLabel::MissedBreath &&
-            example.label != LearningLabel::FalsePositive) {
+        if (!eligibleLabel(example.label, kind)) {
             continue;
         }
         sources.push_back(sourceKey(example));
@@ -139,9 +146,7 @@ bool splitExamples(const std::vector<LearningExample>& examples, Split& split) {
         Split attempt;
         attempt.validationSource = candidate;
         for (const LearningExample& example : examples) {
-            if (example.label != LearningLabel::BreathConfirmed &&
-                example.label != LearningLabel::MissedBreath &&
-                example.label != LearningLabel::FalsePositive) {
+            if (!eligibleLabel(example.label, kind)) {
                 continue;
             }
             if (sourceKey(example) == candidate) attempt.validation.push_back(example);
@@ -149,15 +154,13 @@ bool splitExamples(const std::vector<LearningExample>& examples, Split& split) {
         }
         const int trainPos = static_cast<int>(std::count_if(
             attempt.train.begin(), attempt.train.end(), [](const LearningExample& e) {
-                return e.label == LearningLabel::BreathConfirmed ||
-                       e.label == LearningLabel::MissedBreath;
+                return positiveLabel(e.label);
             }));
         const int trainNeg = static_cast<int>(attempt.train.size()) - trainPos;
         const int valPos = static_cast<int>(std::count_if(
             attempt.validation.begin(), attempt.validation.end(),
             [](const LearningExample& e) {
-                return e.label == LearningLabel::BreathConfirmed ||
-                       e.label == LearningLabel::MissedBreath;
+                return positiveLabel(e.label);
             }));
         const int valNeg = static_cast<int>(attempt.validation.size()) - valPos;
         if (trainPos >= 3 && trainNeg >= 3 && valPos >= 2 && valNeg >= 2) {
@@ -169,7 +172,7 @@ bool splitExamples(const std::vector<LearningExample>& examples, Split& split) {
 }
 
 float predictProba(const PersonalProfile& profile, const LearningFeatures& features) {
-    const std::vector<float> x = featureVector(features);
+    const std::vector<float> x = featureVector(features, profile.kind);
     const float z = profile.bias +
                     profile.weightScore * x[0] +
                     profile.weightDuration * x[1] +
@@ -187,6 +190,11 @@ const char* learningLabelName(LearningLabel label) {
         case LearningLabel::FalsePositive: return "false_positive";
         case LearningLabel::MissedBreath: return "missed_breath";
         case LearningLabel::EditorialExclusion: return "editorial_exclusion";
+        case LearningLabel::ClickConfirmed: return "click_confirmed";
+        case LearningLabel::ClickFalsePositive: return "click_false_positive";
+        case LearningLabel::MissedClick: return "missed_click";
+        case LearningLabel::MouthClickConfirmed: return "mouth_click_confirmed";
+        case LearningLabel::VocalTransient: return "vocal_transient";
         default: return "unverified";
     }
 }
@@ -196,6 +204,11 @@ LearningLabel learningLabelFromName(const std::string& name) {
     if (name == "false_positive") return LearningLabel::FalsePositive;
     if (name == "missed_breath") return LearningLabel::MissedBreath;
     if (name == "editorial_exclusion") return LearningLabel::EditorialExclusion;
+    if (name == "click_confirmed") return LearningLabel::ClickConfirmed;
+    if (name == "click_false_positive") return LearningLabel::ClickFalsePositive;
+    if (name == "missed_click") return LearningLabel::MissedClick;
+    if (name == "mouth_click_confirmed") return LearningLabel::MouthClickConfirmed;
+    if (name == "vocal_transient") return LearningLabel::VocalTransient;
     return LearningLabel::Unverified;
 }
 
@@ -239,16 +252,20 @@ LearningFeatures extractLearningFeatures(const AudioBuffer& audio,
     return features;
 }
 
-std::vector<LearningExample> collectLearningExamples(const AudioDocument& document) {
+std::vector<LearningExample> collectLearningExamples(const AudioDocument& document, DetectionKind kind) {
     std::vector<LearningExample> examples;
     const AudioBuffer& audio = document.audio();
     const std::string identity = recordingIdentity(audio);
     if (identity.empty()) return examples; // Cannot guarantee independent recordings.
     for (const EditRegion& region : document.regions()) {
         if (!region.trainingEligible || region.decisionSource != "user" ||
-            region.kind != DetectionKind::Breath || region.manualOperation) continue;
-        const LearningLabel label = learningLabelFromName(region.learningLabel);
-        if (label == LearningLabel::Unverified || label == LearningLabel::EditorialExclusion) {
+            region.kind != kind || region.manualOperation) continue;
+        LearningLabel label = learningLabelFromName(region.learningLabel);
+        // Early sessions used a generic negative label for both categories.
+        // Resolve it only AFTER checking the explicit region kind; direct
+        // training input cannot import breath negatives into the click set.
+        if(kind==DetectionKind::Click && label==LearningLabel::FalsePositive)label=LearningLabel::ClickFalsePositive;
+        if (!eligibleLabel(label, kind)) {
             continue;
         }
         LearningExample example;
@@ -266,15 +283,15 @@ std::vector<LearningExample> collectLearningExamples(const AudioDocument& docume
 }
 
 bool trainPersonalProfile(const std::vector<LearningExample>& input,
-                          PersonalProfile& profile, std::string* error) {
+                          PersonalProfile& profile, std::string* error, DetectionKind kind) {
     profile = PersonalProfile{};
     std::vector<LearningExample> examples;
     std::map<std::string, LearningLabel> seen;
     for (const auto& example : input) {
-        if (!verified(example)) continue;
+        if (!verified(example, kind)) continue;
         for (const auto& previous : examples) {
-            const bool positive = example.label != LearningLabel::FalsePositive;
-            const bool otherPositive = previous.label != LearningLabel::FalsePositive;
+            const bool positive = positiveLabel(example.label);
+            const bool otherPositive = positiveLabel(previous.label);
             if (sourceKey(example) == sourceKey(previous) && positive != otherPositive &&
                 example.startFrame < previous.endFrame && previous.startFrame < example.endFrame) {
                 if (error) *error = "etichette positive e negative sovrapposte: verificare i confini";
@@ -298,23 +315,22 @@ bool trainPersonalProfile(const std::vector<LearningExample>& input,
     }
     const int positives = static_cast<int>(std::count_if(
         examples.begin(), examples.end(), [](const LearningExample& e) {
-            return e.label == LearningLabel::BreathConfirmed ||
-                   e.label == LearningLabel::MissedBreath;
+            return positiveLabel(e.label);
         }));
     const int negatives = static_cast<int>(std::count_if(
         examples.begin(), examples.end(), [](const LearningExample& e) {
-            return e.label == LearningLabel::FalsePositive;
+            return !positiveLabel(e.label);
         }));
     if (positives < 6 || negatives < 6) {
         if (error) {
-            *error = "servono almeno 6 respiri confermati e 6 falsi positivi "
+            *error = std::string("servono almeno 6 ") + (kind == DetectionKind::Click ? "click" : "respiri") + " confermati e 6 falsi positivi "
                      "verificati; trovati " + std::to_string(positives) + " e " +
                      std::to_string(negatives);
         }
         return false;
     }
     Split split;
-    if (!splitExamples(examples, split)) {
+    if (!splitExamples(examples, split, kind)) {
         if (error) {
             *error = "servono esempi validati da almeno due registrazioni "
                      "distinte, con respiri e falsi positivi in entrambe";
@@ -337,9 +353,8 @@ bool trainPersonalProfile(const std::vector<LearningExample>& input,
         float grad3 = 0.0f;
         float grad4 = 0.0f;
         for (const LearningExample& example : split.train) {
-            const std::vector<float> x = featureVector(example.features);
-            const float target = (example.label == LearningLabel::BreathConfirmed ||
-                                  example.label == LearningLabel::MissedBreath) ? 1.0f : 0.0f;
+            const std::vector<float> x = featureVector(example.features, kind);
+            const float target = positiveLabel(example.label) ? 1.0f : 0.0f;
             const float z = bias + w0 * x[0] + w1 * x[1] + w2 * x[2] + w3 * x[3] + w4 * x[4];
             const float p = sigmoid(z);
             const float d = p - target;
@@ -361,6 +376,8 @@ bool trainPersonalProfile(const std::vector<LearningExample>& input,
     }
 
     PersonalProfile candidate;
+    candidate.kind = kind;
+    candidate.schema = kind == DetectionKind::Click ? 3 : 2;
     candidate.valid = true;
     candidate.bias = bias;
     candidate.weightScore = w0;
@@ -379,7 +396,7 @@ bool trainPersonalProfile(const std::vector<LearningExample>& input,
     auto eval = [&](const std::vector<LearningExample>& data, float threshold, bool general = false) {
         Metrics metric;
         for (const auto& example : data) {
-            const bool positive = example.label != LearningLabel::FalsePositive;
+            const bool positive = positiveLabel(example.label);
             // Runtime filters existing proposals; it cannot generate a missed
             // breath. Validation must measure that same operating behavior.
             const bool predicted = example.baselineAccepted && (general ||
@@ -451,7 +468,8 @@ bool savePersonalProfile(const std::string& path, const PersonalProfile& profile
     }
     std::ostringstream out;
     out << std::setprecision(9);
-    out << "schema=2\n"
+    out << "schema=" << (profile.kind==DetectionKind::Click?3:2) << "\n"
+        << "category=" << (profile.kind == DetectionKind::Click ? "click" : "breath") << "\n"
         << "valid=" << (profile.valid ? 1 : 0) << "\n"
         << "bias=" << profile.bias << "\n"
         << "weightScore=" << profile.weightScore << "\n"
@@ -508,11 +526,16 @@ bool loadPersonalProfile(const std::string& path, PersonalProfile& profile,
         invalidNumber = true;
         return fallback;
     };
-    if (values["schema"] != "2") {
+    if (values["schema"] != "2" && values["schema"] != "3") {
         if (error) *error = "profilo precedente da ricalibrare: validazione non indipendente";
         return false;
     }
     PersonalProfile loaded;
+    loaded.schema = values["schema"] == "3" ? 3 : 2;
+    if (values["category"] == "click" && loaded.schema == 3) loaded.kind = DetectionKind::Click;
+    else if (!values["category"].empty() && values["category"] != "breath") {
+        if(error) *error = "categoria del profilo non compatibile"; return false;
+    }
     loaded.validationSource = values["validationSource"];
     loaded.validationMisses = static_cast<int>(number("validationMisses", 0));
     loaded.validationFalsePositives = static_cast<int>(number("validationFalsePositives", 0));
@@ -534,8 +557,13 @@ bool loadPersonalProfile(const std::string& path, PersonalProfile& profile,
     const auto created = values.find("createdAt");
     if (created != values.end()) loaded.createdAt = created->second;
     loaded.sources = std::move(sources);
+    if(loaded.schema==3 && loaded.kind!=DetectionKind::Click) {
+        if(error)*error="categoria assente nel profilo click";return false;
+    }
     if (invalidNumber || !loaded.valid || loaded.positives < 6 || loaded.negatives < 6 ||
         loaded.sources.size() < 2 || loaded.validationBalancedAccuracy < .65 ||
+        loaded.validationBalancedAccuracy+1e-6 < loaded.baselineBalancedAccuracy ||
+        loaded.validationMisses > loaded.baselineMisses || loaded.validationFalsePositives > loaded.baselineFalsePositives ||
         loaded.validationBalancedAccuracy > 1 || loaded.baselineBalancedAccuracy < 0 ||
         loaded.baselineBalancedAccuracy > 1 || loaded.validationMisses < 0 || loaded.validationFalsePositives < 0 ||
         loaded.baselineMisses < 0 || loaded.baselineFalsePositives < 0 ||

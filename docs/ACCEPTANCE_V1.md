@@ -1,7 +1,9 @@
 # Criteri per NL Breath Click Studio 1.0
 
-La versione corrente resta una candidate. Verifiche attuali e collaudo umano
-in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
+La prima stabile comprende respiri e click, anche in presenza di parlato.
+La RC3 resta sperimentale e locale; RC2 pubblicata invariata. Verifiche attuali
+e collaudo umano in TESTING.md. macOS/Linux e denoise ambientale non sono
+prerequisiti della 1.0 Windows. I criteri sotto sono le condizioni di uscita.
 
 ## AC-01 Build riproducibile
 
@@ -27,9 +29,11 @@ in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
   .\tools\cmake-3.28.6-windows-x86_64\bin\ctest.exe `
     --test-dir build -C Release --output-on-failure
   ```
-- Atteso corrente: **31/31**, con `BC_REQUIRE_RELEASE_TESTS=ON`.
+- Atteso: **33/33 sul tag RC2, 37/37 sulla RC3 Windows completa**, con
+  `BC_REQUIRE_RELEASE_TESTS=ON`; aggiornare il conteggio quando cambia la suite.
 - Non e' accettabile dichiarare verde un test saltato per fixture mancante.
-- Stato: **PASS RC** (31/31 da build nuova, nessun test obbligatorio saltato).
+- Stato: **PASS RC3**, 37/37 sul ramo Windows completo, nessun salto;
+  ultimo collaudo professionale in STATO_PROGETTO.md.
 
 ## AC-03 Pacchetto portatile
 
@@ -59,8 +63,10 @@ in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
   - originale invariato dopo analisi/export.
 - Evidenza corrente: `bc_codec_tests`, `bc_studio_pipeline_formats`,
   `bc_studio_workflow`, verifica pacchetto.
-- Stato: **PASS RC** su fixture sintetiche e codec CBR/VBR; per 1.0 ripetere su almeno un
-  WAV, un MP3 e un FLAC reali con hash prima/dopo.
+- Stato: **PASS RC3** su fixture sintetiche e codec CBR/VBR, tre WAV vocali
+  interi e import/session/export WAV/MP3/FLAC da copia vocale reale, hash
+  prima/dopo. MP3/FLAC di questa prova sono conversioni della voce, non
+  registrazioni native distinte. La prova su macchina pulita resta aperta.
 
 ## AC-05 Selezione visibile e distinguibile
 
@@ -180,7 +186,8 @@ in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
 ## AC-14 Dati protetti e confini
 
 - Criterio: nessuna modifica a `materiale_flat`, `AI_Fiati/_lavoro/modello`,
-  dataset, annotazioni, pesi, REAPER, originali; nessun push GitHub.
+  dataset, annotazioni, pesi, originali o REAPER professionale. REAPER di prova
+  solo nella portable/profilo isolati; pubblicazioni solo se autorizzate.
 - Evidenza: hash degli originali nei test workflow; stato Git e policy
   `AGENTS.md`.
 - Stato: **PASS RC** per le prove eseguite; la verifica va ripetuta su ogni
@@ -197,9 +204,9 @@ in TESTING.md. I criteri sotto rimangono le condizioni di uscita della 1.0.
 
 ## AC-16 Criteri di uscita 1.0
 
-La standalone 1.0 non si dichiara finche' non sono soddisfatti tutti:
+La 1.0 Windows non si dichiara finche' non sono soddisfatti tutti:
 
-- [ ] build e tutti i 31 test su macchina Windows pulita (AC-01/AC-02);
+- [ ] build e tutti i test obbligatori su macchina Windows pulita (AC-01/AC-02);
 - [ ] ZIP estratto verificato con GUI/CLI e WAV/MP3/FLAC reali (AC-03/AC-04);
 - [ ] GUI verificata a DPI 125/150% e tema chiaro/scuro (AC-05);
 - [ ] Undo/Redo e regioni manuali verificati dall'utente su materiale reale
@@ -209,6 +216,66 @@ La standalone 1.0 non si dichiara finche' non sono soddisfatti tutti:
       (AC-11);
 - [ ] profilo personale end-to-end su due registrazioni reali (AC-12);
 - [x] nessun test obbligatorio saltato e limiti noti dichiarati per questa RC;
-- [x] nessun push/REAPER/originale modificato (AC-14).
+- [x] originali e installazione professionale preservati (AC-14);
+- [ ] respiri/click indipendenti, riparazione utile e voce preservata su
+      registrazioni reali con conferma d'ascolto dell'utente (AC-17);
+- [x] pacchetti Windows standalone/REAPER indipendenti collaudati in cartelle
+      isolate sul banco Windows esistente (AC-18); macchina pulita ancora AC-01/03.
 
-Fino ad allora la designazione corretta e' **release candidata 1.0.0-rc.2**.
+Fino ad allora: RC2 pubblicata, RC3 sperimentale locale. Nessuna stabile
+o indicazione Latest soltanto per modificare la presentazione GitHub.
+
+## AC-17 Respiri, click e naturalezza della voce
+
+- Tre combinazioni effettive in standalone e REAPER: solo respiri, solo click,
+  entrambi. Stesso motore CLI/SDK, sensibilita', categorie e annotazioni distinte.
+- Trattamenti dedicati: i click non accorciano il file. Single/batch, confini,
+  Undo/Redo e salvataggio/riapertura conservano le decisioni.
+- Originale/Elaborato/Solo rimosso coerenti con l'export. Il residuo e' la
+  differenza allineata all'originale, anche con TimeMap dei respiri.
+- Eventi incerti da rivedere; rinuncia automatica senza modifiche parziali
+  fra canali quando la ricostruzione non e' giustificata. Le label click non
+  entrano nel calibratore respiri e gli esempi del test non sono label umane.
+- Prova percettiva su schiocchi di saliva naturali, anche sovrapposti alla
+  voce, piu' consonanti, attacchi e parlato senza click da preservare.
+  Annotare separatamente click mancati, falsi positivi, danni alla voce ed
+  esiti utili. Confrontare anche gli eventi rifiutati: conservare tutto non
+  dimostra una riparazione efficace. Le misure sintetiche non sostituiscono
+  questi risultati e non attestano miglioramenti di accuratezza.
+- Stato: **PARZIALE RC3**. Funzioni e protezioni tecniche collaudate; ascolto
+  professionale e un insieme di saliva naturale nel parlato ancora necessari.
+  Il collaudo del 26 ottobre su tre registrazioni intere, 183,31 s, trova
+  proposte Fusion vicine a 22/28 punti respiro (250 ms) e 2/9 punti click
+  (50 ms) dei CSV manuali; due marker click indicano genericamente silenzio
+  e click. Le altre proposte non sono automaticamente falsi positivi.
+  Una revisione preesistente conserva tre respiri mancati non recuperati
+  da DSP/Fusion; due di otto gruppi negativi sono riproposti, nessuno riparato
+  automaticamente. Copertura e tolleranze vanno valutate separatamente dalla
+  qualita' del nuovo Auto, che resta congelato in attesa del confronto cieco.
+  Follow-up sui piani esistenti: esclusi i due marker generici, cinque punti
+  click espliciti restano senza proposte anche a 100 ms; un click intercettato
+  dista 24,34 ms dal marker. Nei cinque punti mancati il picco del residuo
+  predittivo entro circa 50 ms resta sotto il gate assoluto 0,001 del
+  rilevatore. Sei punti respiro restano senza proposte anche a 500 ms.
+  Sono mancati rispetto alle annotazioni conservate, non nuove conferme
+  percettive: non abbassare soglie senza controllare anche consonanti e
+  falsi positivi. Nessuna modifica al rilevatore effettuata per questi numeri.
+  Aggiornamento adattivo del 27 ottobre: secondo passaggio per impulsi deboli,
+  solo revisione. Recuperato un ulteriore punto esplicito entro 7,5 ms;
+  19 proposte aggiuntive sui tre file, vecchi eventi e audio automatico
+  identici. Restano quattro click espliciti e sei respiri mancati. Negativi
+  pre-verificati ancora 2/8 gruppi riproposti, senza ammissione automatica
+  dei nuovi impulsi. Nessuna precisione generale dedotta da questi punti.
+  Feedback sulla riparazione distinto dalle label, persistente e annullabile;
+  non esiste ancora apprendimento personale dei click o del selettore Auto.
+
+## AC-18 Due installazioni indipendenti
+
+- Standalone estratta senza REAPER o Python nell'ambiente applicativo.
+- ZIP REAPER con CLI, runtime e modelli propri, senza GUI standalone o copia
+  REAPER inclusa. Collaudo del backend estratto dentro la portable esistente,
+  non del backend di sviluppo selezionato per errore.
+- Manifest, versione e commit corrispondenti; durata, originali, residuo,
+  tre modalita' e Fusion funzionanti in entrambe le installazioni.
+- RC2 e indice ReaPack pubblico invariati durante la prova locale RC3.
+  Pubblicazione 1.0 Windows e Latest solo dopo accettazione della qualita'.

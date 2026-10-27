@@ -17,6 +17,12 @@ endif()
 set_tests_properties(bc_reaper_lua PROPERTIES
     ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1" TIMEOUT 60)
 
+add_test(NAME bc_reaper_startup_state COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_host_ready.py")
+if(BC_BUILD_STUDIO_CLI)
+    add_test(NAME bc_mouth_click_engine COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/test_mouth_click.py" --cli $<TARGET_FILE:bc_studio_cli>)
+    set_tests_properties(bc_mouth_click_engine PROPERTIES TIMEOUT 120)
+endif()
+
 if(BC_BUILD_STUDIO_CLI AND WIN32)
     add_test(NAME bc_reaper_portable_worker COMMAND "${BC_PYTHON_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_bridge.py")
     set_tests_properties(bc_reaper_portable_worker PROPERTIES

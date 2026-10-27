@@ -24,6 +24,7 @@
 #include <windowsx.h>
 
 #include "editor_commands.h"
+#include "analysis_task.h"
 #include "studio_dialogs.h"
 #include "studio_engine.h"
 #include "studio_project.h"
@@ -439,7 +440,10 @@ studio::Settings EditorWindow::makeStudioSettings() const {
     settings.postPadMs = editSettings_.postPadMs;
     settings.sensitivity = detectorSettings_.breathSensitivity;
     settings.threshold = detectorSettings_.breathThreshold;
+    settings.detectBreath = detectorSettings_.detectBreath;
     settings.detectClicks = detectorSettings_.detectClicks;
+    settings.clickSensitivity = detectorSettings_.clickSensitivity;
+    settings.clickThreshold = detectorSettings_.clickThreshold;
     settings.dspSettings = detectorSettings_;
     settings.detector = studioDetector_;
     settings.aiThreshold = aiThreshold_;
@@ -506,6 +510,9 @@ bool EditorWindow::applySessionTo(AudioDocument* doc,
             region.trainingEligible = event.trainingEligible;
             if (event.reductionDb) region.reductionDb = *event.reductionDb;
             region.repair = event.repair;
+            region.repairMethod = event.repairMethod;
+            region.repairFeedback=event.repairFeedback;
+            region.repairFeedbackMethod=event.repairFeedbackMethod;
             doc->updateRegion(static_cast<int>(i), region, false);
             break;
         }
@@ -819,6 +826,7 @@ void EditorWindow::commandRecoverProject() {
 }
 
 bool EditorWindow::analyzeActiveTrack(bool interactive, std::string* error) {
+    if (analysisBusy_) { if (error) *error = "Analisi gia' in corso"; return false; }
     if (!document_.isLoaded()) {
         if (error) *error = "aprire prima un file audio";
         if (interactive) setStatusMessage(*error);
@@ -831,10 +839,24 @@ bool EditorWindow::analyzeActiveTrack(bool interactive, std::string* error) {
     }
     player_.stop();
     const studio::Settings settings = makeStudioSettings();
+    regionAudition_ = false;
 
     studio::Analysis analysis;
     std::string analysisError;
-    if (!studio::analyzeFile(document_.sourcePath(), settings, &analysis, &analysisError)) {
+    analysisControl_.cancelRequested = false;
+    analysisBusy_ = true;
+    const bool analyzed = analyzeWithProgress(window_, document_.sourcePath(), settings,
+                                              &analysis, &analysisError, analysisControl_);
+    analysisBusy_ = false;
+    if (analysisCloseRequested_) { analysisCloseRequested_ = false; PostMessageW(window_, WM_CLOSE, 0, 0); }
+    if (!analyzed) {
+        if (analysisControl_.cancelled()) {
+            // The document, cached preview, Undo history and file status still
+            // describe the prior successful analysis, not a failed request.
+            setStatusMessage("Analisi annullata; modifiche precedenti conservate");
+            if (error) error->clear();
+            return false;
+        }
         if (error) *error = analysisError;
         if (activeTrack_ >= 0 && activeTrack_ < static_cast<int>(trackErrors_.size())) {
             trackErrors_[static_cast<size_t>(activeTrack_)] = analysisError;
@@ -856,10 +878,12 @@ bool EditorWindow::analyzeActiveTrack(bool interactive, std::string* error) {
     detections.reserve(analysis.events.size());
     int profileRejected = 0;
     for (const studio::Event& event : analysis.events) {
-        if (event.kind == DetectionKind::Breath && personalProfileActive_ && personalProfile_.valid) {
+        const auto& profile=event.kind==DetectionKind::Click?clickProfile_:personalProfile_;
+        const bool active=event.kind==DetectionKind::Click?clickProfileActive_:personalProfileActive_;
+        if (active && profile.valid && profile.kind==event.kind) {
             const LearningFeatures features = extractLearningFeatures(
                 document_.audio(), event.startSample, event.endSample, event.score);
-            if (!personalProfile_.accepts(features)) {
+            if (!profile.accepts(features)) {
                 ++profileRejected;
                 continue;
             }
@@ -938,6 +962,15 @@ bool EditorWindow::exportActiveTrackTo(const std::string& outputPath, std::strin
     }
     view_.refreshDocument(false);
     engineApplied_ = result.appliedEvents; engineRejected_ = result.rejectedEvents;
+    engineDeclined_ = result.declinedEvents;
+    // Reuse the exact exported render for outcome display and subsequent A/B.
+    // Exporting must never turn a safety refusal into an "applied" label.
+    player_.stop();
+    preview_ = std::move(result);
+    previewSignature_ = studio::renderPlanSignature(plan);
+    previewAudioRevision_ = document_.audioRevision();
+    previewAudio_ = std::make_shared<std::vector<float>>(preview_.audio.samples);
+    hasPreview_ = true;
     refreshRegionPanel(true);
     refreshTrackStatus();
     return true;
@@ -955,14 +988,13 @@ bool EditorWindow::analyzeAllTracks() {
         SetWindowTextW(window_, (L"Analisi " + std::to_wstring(i + 1) + L"/" +
                                  std::to_wstring(tracks_.size()) + L" - " +
                                  wide(trackNames_[static_cast<size_t>(i)])).c_str());
-        pumpMessages();
         std::string error;
         if (analyzeActiveTrack(false, &error)) {
             ++success;
         } else {
+            if (analysisControl_.cancelled()) { updateTitle(); return false; }
             ++failures;
         }
-        pumpMessages();
     }
     refreshTrackStatus();
     updateTitle();

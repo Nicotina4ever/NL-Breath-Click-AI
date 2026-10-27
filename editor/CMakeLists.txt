@@ -8,6 +8,7 @@ set(EDITOR_SOURCES
     main.cpp
     editor_window.cpp
     editor_project.cpp
+    analysis_task.cpp
     editor_region_panel.cpp
     detector_settings_store.cpp
     detection_preview.cpp

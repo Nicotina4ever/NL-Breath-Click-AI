@@ -48,12 +48,22 @@ def native_path(path):
 
 def main():
     absent = "--codec-absent" in sys.argv
+    real = None
+    if '--real-fixture' in sys.argv:
+        real = Path(sys.argv[sys.argv.index('--real-fixture')+1]).resolve()
+        repo = Path(__file__).resolve().parents[2]
+        if not real.is_relative_to(repo/'build'):
+            raise ValueError('Real voice tests require an authorized build-local copy')
+        real_hash = digest(real)
     with tempfile.TemporaryDirectory(prefix="bc_portable_audio_") as directory:
         work = Path(directory)
         sr = 48000
         t = np.arange(sr * 2) / sr
         voice = .08 * np.sin(2 * np.pi * 180 * t)
         stereo = np.column_stack([voice, voice * .7])
+        if real:
+            stereo, sr = sf.read(real, dtype='float32', always_2d=True)
+            assert len(stereo)>30000
         long_work = work / ("percorso_" + "a" * 90) / ("voce_è_🎙_" + "b" * 90)
         native_path(long_work).mkdir(parents=True)
         try:
@@ -70,7 +80,7 @@ def main():
                         shutil.copyfile(native_path(fixture), native_path(source))
                     original = digest(source)
                     before = probe(source)
-                    assert int(before["channels"]) == 2 and int(before["sample_rate"]) == sr, before
+                    assert int(before["channels"]) == stereo.shape[1] and int(before["sample_rate"]) == sr, before
                     session = location / f"{extension}.bcnstudio.json"
                     native_path(session).write_text(json.dumps({
                         "schema": 2, "source": str(source), "source_sha256": original,
@@ -96,11 +106,13 @@ def main():
                         else:
                             assert abs(int(after["frames"]) - int(before["frames"])) <= int(sr * .03), (before, after)
                     assert digest(source) == original, f"Original changed: {source}"
-                    print(f"PORTABLE AUDIO OK: {extension}, stereo, duration, original hash; codec_absent={absent}, long_path={location == long_work}")
+                    print(f"PORTABLE AUDIO OK: {extension}, channels={stereo.shape[1]}, duration, original hash; codec_absent={absent}, real_voice={real is not None}, long_path={location == long_work}")
         finally:
             # Only this TemporaryDirectory's synthetic fixtures, via extended
             # paths so cleanup does not require a global long-path policy.
             shutil.rmtree(native_path(work))
+    if real:
+        assert digest(real)==real_hash
     return 0
 
 

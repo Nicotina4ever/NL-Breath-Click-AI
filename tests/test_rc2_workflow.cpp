@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MPL-2.0
 #include "standalone/studio_engine.h"
 #include "standalone/studio_session.h"
+#include "standalone/respiro_onnx.h"
 #include "core/learning/personal_profile.h"
 #include <cmath>
 #include <chrono>
@@ -140,6 +141,73 @@ int main() try {
     check(p.analysis.aiFrames == 100, "effective detector plan");
     check(fresh.undo() && fresh.analysisProvenance().detector.empty() && fresh.redo() && fresh.analysisProvenance().aiFrames == 100, "analysis provenance Undo/Redo");
     check(doc.audio().samples == original, "source buffer changed");
+    // Coextensive Silence and reconstruction have different observed outcomes,
+    // even when both receive the same overlapping de-click diagnostics.
+    EditPlan observed; observed.sampleRate=source.sampleRate; observed.channels=source.channels;
+    Event click; click.kind=DetectionKind::Click; click.repair=true; click.repairMethod="linear";
+    click.startSample=10000; click.endSample=10041; click.approved=true; click.fadeMs=0;
+    Event silenced=click; silenced.mode=EditMode::Silence;
+    observed.events={silenced,click};
+    check(applyEditPlan(source,observed,&out,&error), "overlapping click outcomes");
+    check(std::string(eventOutcome(silenced,&out))=="applied" &&
+          std::string(eventOutcome(click,&out))=="repaired", "Silence falsely reported as click reconstruction");
+    auto signature=renderPlanSignature(observed);
+    observed.events[1].repairFeedback="unsatisfactory";
+    check(renderPlanSignature(observed)==signature,"quality feedback changed audio signature");
+    observed.events[1].endSample++;
+    check(renderPlanSignature(observed)!=signature,"unnotified bounds reused render signature");
+    const auto pcmRevision=doc.audioRevision();
+    doc.setMasterGainDb(-3);
+    check(doc.audioRevision()==pcmRevision,"envelope change copied source PCM unnecessarily");
+    check(doc.applyGainToRange(0,20,-3) && doc.audioRevision()!=pcmRevision,"silent PCM edit failed revision tracking");
+    const auto gainRevision=doc.audioRevision();
+    check(doc.undo() && doc.audioRevision()!=gainRevision,"PCM Undo failed revision tracking");
+    std::vector<float> probabilities(120,0);
+    std::fill(probabilities.begin(),probabilities.begin()+20,.99f); // incomplete leading context
+    std::fill(probabilities.begin()+23,probabilities.begin()+43,.99f);
+    std::fill(probabilities.begin()+44,probabilities.begin()+65,.99f); // existing long output stays separate
+    std::fill(probabilities.begin()+66,probabilities.begin()+73,.9f); // too short
+    std::fill(probabilities.begin()+74,probabilities.begin()+93,.1f); // weak evidence
+    std::fill(probabilities.begin()+100,probabilities.end(),.99f); // incomplete trailing context
+    const auto shortAi=shortBreathReviewProposals(probabilities,.064f);
+    check(shortAi.size()==1 && shortAi[0].startFrame==23 && shortAi[0].endFrame==43,"short AI proposal boundaries/confidence/context");
+    Detection shortBreath;shortBreath.kind=DetectionKind::Breath;shortBreath.classification="ai_short_review";
+    shortBreath.startSample=1000;shortBreath.endSample=10600;shortBreath.peakScore=.99f;
+    fresh.reconcileRegions({shortBreath},EditSettings{});
+    bool reviewFound=false;
+    for (const auto& r:fresh.regions()) if(r.classification=="ai_short_review") reviewFound=!r.approved && !r.trainingEligible;
+    check(reviewFound,"new short breath was approved automatically");
+    AudioDocument reconsider;check(reconsider.load(input,&error),"reconsider fixture");
+    Detection initiallyAutomatic=shortBreath;initiallyAutomatic.classification="ai";
+    reconsider.reconcileRegions({initiallyAutomatic},EditSettings{});
+    check(reconsider.regions()[0].approved,"ordinary automatic proposal fixture");
+    reconsider.reconcileRegions({shortBreath},EditSettings{});
+    check(!reconsider.regions()[0].approved,"automatic approval survived reclassification to review-only");
+    bc::AnalysisResult fragments;fragments.sampleRate=48000;fragments.totalSamples=96000;fragments.hopSize=256;
+    fragments.breathScores.assign(375,0);fragments.frameLevelDb.assign(375,-50);
+    std::fill(fragments.breathScores.begin()+100,fragments.breathScores.begin()+112,.3f);
+    std::fill(fragments.breathScores.begin()+113,fragments.breathScores.begin()+125,.3f);
+    std::vector<float> corroboration(200,0);std::fill(corroboration.begin()+52,corroboration.begin()+70,.3f);
+    auto joined=fragmentedBreathReviewProposals(fragments,corroboration,.064f);
+    check(joined.size()==1 && !joined[0].approved && !joined[0].trainingEligible &&
+        joined[0].classification=="dsp_fragment_review","corroborated fragmented breath must remain review-only");
+    check(fragmentedBreathReviewProposals(fragments,std::vector<float>(200,0),.064f).empty(),"fragment grouping without AI evidence");
+    fragments.frameLevelDb.assign(375,-20);std::fill(fragments.frameLevelDb.begin()+100,fragments.frameLevelDb.begin()+125,-50);
+    check(fragmentedBreathReviewProposals(fragments,corroboration,.064f).empty(),"fragment grouping bypassed consonant/pause guard");
+    EditPlan bounded;bounded.sampleRate=source.sampleRate;bounded.channels=source.channels;
+    bounded.settings.fadeMs=15;bounded.settings.crossfadeMs=5;
+    Event cut;cut.startSample=10000;cut.endSample=20000;cut.approved=true;cut.mode=EditMode::Cut;
+    for (bool manualJoin:{false,true}) for (double margin:{0.,10.}) {
+        cut.manualOperation=manualJoin;cut.safetyMarginMs=margin;bounded.events={cut};
+        check(applyEditPlan(source,bounded,&out,&error),"bounded join render");
+        for (int64_t i=0;i<source.frameCount();++i) if(i<cut.startSample || i>=cut.endSample) {
+            bool removed=false;auto mapped=out.map.mapOriginal(i,&removed);
+            check(!removed,"crossfade removed an unapproved source sample");
+            for(int c=0;c<source.channels;++c)
+                check(out.audio.samples[mapped*source.channels+c]==source.samples[i*source.channels+c],"join modified PCM outside approved region");
+        }
+        if(margin==0) check(out.removedSamples==10000 && out.crossfadeFrames==0 && out.operations[0].fadeFrames==0,"exact cut borrowed unapproved handles");
+    }
     std::cout << "RC2 AUDIO OK: manual modes/replacement, sample-exact gain overlay, silence, TimeMap, restore, Undo/Redo, exclusions, overlap, click, labels, Fusion bridge\n";
     return 0;
 } catch (const std::exception& error) { std::cerr << "RC2 FAILED: " << error.what() << "\n"; return 1; }

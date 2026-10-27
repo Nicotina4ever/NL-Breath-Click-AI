@@ -81,6 +81,8 @@ public:
 
     // --- navigazione -------------------------------------------------------
     void zoomToFit();
+    void zoomToSelection();
+    void zoomToRange(int64_t start, int64_t end);
     void zoomAround(double factor, int64_t anchorFrame);
     void scrollByPixels(int pixels);
     void ensureFrameVisible(int64_t frame);

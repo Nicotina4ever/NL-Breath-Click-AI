@@ -41,6 +41,9 @@ struct EditRegion {
 
     // Solo click: ripara per interpolazione invece di attenuare.
     bool repair = false;
+    std::string repairMethod = "auto";
+    // Listening feedback is independent of detection truth and training.
+    std::string repairFeedback, repairFeedbackMethod;
 
     // Una regione disattivata resta visibile ma non viene applicata.
     bool enabled = true;
@@ -154,6 +157,8 @@ public:
     //  Informazione sul contenuto
     // ---------------------------------------------------------------------
     const AudioBuffer& audio() const { return buffer_; }
+    // Changes only when source PCM changes, including edits without GUI callbacks.
+    uint64_t audioRevision() const { return audioRevision_; }
     const AnalysisProvenance& analysisProvenance() const { return analysis_; }
     void setAnalysisProvenance(const AnalysisProvenance& analysis) { analysis_ = analysis; }
     int64_t frameCount() const { return frameCount_; }
@@ -341,6 +346,7 @@ private:
     void rebuildFrameCount();
 
     AudioBuffer buffer_;
+    uint64_t audioRevision_ = 0;
     int64_t frameCount_ = 0;
     bool loaded_ = false;
     bool modified_ = false;

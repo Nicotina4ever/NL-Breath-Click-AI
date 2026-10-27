@@ -5,6 +5,7 @@
 #  Tre WAV sintetici, nessun audio utente, nessun REAPER. Verifica il flusso
 #  completo della GUI in modalita' headless e l'integrita' degli originali.
 # ============================================================================
+param([string]$AudioFixtureDirectory='')
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -29,9 +30,18 @@ function Hash($path) {
 
 $inputs = @()
 $hashes = @{}
+$realFixtures=@()
+if ($AudioFixtureDirectory) {
+    $fixtureDirectory=(Resolve-Path -LiteralPath $AudioFixtureDirectory).Path
+    $buildPrefix=[IO.Path]::GetFullPath((Join-Path $root 'build'))+'\'
+    if(-not $fixtureDirectory.StartsWith($buildPrefix,[StringComparison]::OrdinalIgnoreCase)){throw 'Only build-local copies are allowed'}
+    $realFixtures=@(Get-ChildItem -LiteralPath $fixtureDirectory -Recurse -File -Filter 'original.wav' | Sort-Object FullName)
+    if($realFixtures.Count -ne 3){throw 'This workflow requires exactly three original.wav copies'}
+}
 for ($i = 1; $i -le 3; $i++) {
     $wav = Join-Path $inputDir ("spot_$i.wav")
-    & $gen gen-test $wav --quiet 2>&1 | Out-Null
+    if($realFixtures.Count) { Copy-Item -LiteralPath $realFixtures[$i-1].FullName -Destination $wav }
+    else { & $gen gen-test $wav --quiet 2>&1 | Out-Null }
     if (-not (Test-Path -LiteralPath $wav)) { throw "WAV non generato: $wav" }
     $inputs += $wav
     $hashes[$wav] = Hash $wav

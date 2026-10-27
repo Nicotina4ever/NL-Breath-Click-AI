@@ -6,6 +6,29 @@
 
 ## Aprire le registrazioni
 
+**Build locale RC3:** nella barra principale puoi scegliere direttamente
+**Rileva respiri** e **Rileva click / bocca**, insieme o separatamente.
+Per i respiri, **Analisi combinata (voce)** usa modello vocale e analisi
+acustica; e' la scelta iniziale se modello e runtime sono presenti. Le scelte
+confermate vengono conservate. Dopo un cambio premi **Analizza**: le correzioni
+manuali rimangono. Gli schiocchi morbidi dubbi appaiono tra gli eventi incerti.
+L'analisi mostra l'avanzamento e un pulsante **Annulla**. Se la interrompi,
+restano le regioni e le correzioni precedenti; puoi riprovare quando vuoi.
+Nella build di sviluppo, **Precedente / Successivo** (P/N) inquadrano l'evento
+allo zoom adatto anche dopo averne spostato i bordi. **Originale**, **Elaborato**
+e **Solo rimosso** nel pannello ascoltano l'evento con 200 ms di contesto per
+lato e si fermano da soli. Sui click trovi direttamente **Auto / Lineare /
+Burg / Intatto**; la protezione della voce rimane attiva.
+I filtri **Da decidere**, **Click: impulsi e schiocchi** e **Riparazioni
+insoddisfacenti** aiutano a suddividere la revisione. **Segnala / apprendimento**
+registra conferme, falsi positivi, eventi mancati sulla selezione temporale o
+un giudizio sulla riparazione. Il pannello scorre per raggiungere i comandi
+inferiori. I piani esportati conservano anche eventi esclusi e feedback.
+Nel menu **Apprendimento** puoi creare e attivare separatamente un profilo
+respiri e un profilo click usando correzioni esplicite salvate nei progetti.
+Servono positivi e negativi da registrazioni indipendenti; nessun modello
+viene aggiornato automaticamente.
+
 Estrai tutto lo ZIP Standalone in una cartella scrivibile e avvia
 `bc_studio.exe`. Non servono REAPER, Python o un account.
 
@@ -69,11 +92,29 @@ esclusioni. **Invio** conferma un dialogo; **Esc** lo annulla.
 Se due tagli sono incompatibili, correggi o ripristina uno degli interventi
 segnalati prima di esportare.
 
+Nella RC3 locale i raccordi di Taglia e Dimezza restano dentro la regione
+approvata. Per sfumare un taglio, lascia spazio ai due lati usando il margine
+interno; senza spazio il taglio resta esatto e il raccordo indicato e' 0 ms.
+Il programma non prende campioni dalla parola vicina per creare una sfumatura.
+Le nuove proposte di respiro breve o frammentato richiedono revisione e non
+vengono attenuate automaticamente. Prima dell'ascolto elaborato viene sempre
+ricontrollato il piano corrente, anche dopo modifiche senza aggiornamento
+esplicito dell'anteprima.
+
 ## Ascolto e navigazione
 
 Usa **Originale** e **Elaborato** per confrontare il risultato. Dopo una
 modifica l'anteprima elaborata viene ricalcolata quando necessario.
 Ascolta anche l'attacco della parola successiva e i raccordi, non soltanto il respiro.
+
+Nella RC3 locale puoi scegliere **Auto, Lineare o Burg** per ogni click e
+confrontarli in anteprima. Il pannello distingue **Click riparato**,
+**Click intatto: protezione della voce** e **Rilevato: da rivedere**.
+Se la ricostruzione rischia di danneggiare il parlato, anche Lineare e Burg
+conservano l'originale. «Incluso» significa soltanto che l'intervento e'
+richiesto: aggiorna l'anteprima per conoscerne l'esito. La scelta Nessuna
+lascia l'audio intatto per tua decisione. Un giudizio insoddisfacente resta
+separato dall'esito del trattamento e non modifica da solo l'audio.
 
 | Tasto o comando | Azione |
 | --- | --- |
@@ -138,6 +179,13 @@ In caso di errore, leggi il messaggio e il report
 esportare in WAV; per ripristinare il codec usa il pacchetto ufficiale completo.
 
 ## Profilo personale, facoltativo
+
+Nella RC3 locale puoi selezionare un intervallo sulla forma d'onda e usare
+il tasto destro → **Respiro non rilevato** o **Click non rilevato**. Su un
+evento puoi segnalare **Falso positivo** oppure **Riparazione insoddisfacente**.
+Quest'ultimo giudizio conserva il trattamento valutato senza cambiare audio
+o classificazione; puoi annullarlo o cancellarlo. Non avvia addestramenti.
+Il profilo adattivo dei click non e' ancora disponibile.
 
 Nel menu **Apprendimento** puoi confermare un respiro, segnalare un falso
 positivo o un respiro mancato. **Escludi** è una scelta di montaggio e non

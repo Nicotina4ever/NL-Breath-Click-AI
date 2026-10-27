@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import PurePosixPath
 REPOSITORY = 'Nicotina4ever/NL-Breath-Click-AI'
-VERSION = '1.0.0-rc.2'
+VERSION = '1.0.0-rc.3'
 TAG = 'v' + VERSION
 REAPER_FILES = ('BreathClickStudio.lua', 'bc_studio_bridge.lua', 'bc_direct.lua',
                 'bc_direct_view.lua', 'bcnext_core.lua', 'BreathClickNext_config.lua',
